@@ -1,9 +1,9 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/user.model");
-const appError = require("../utils/appError");
-const asyncHandler = require("../utils/asyncHandler");
+const { asyncHandler } = require("../utils/asyncHandler");
+const { User } = require("../models/user.model");
+const { appError } = require("../utils/appError");
 
-export const protect = asyncHandler(async (req, res, next) => {
+exports.protect = asyncHandler(async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer")) {
@@ -25,7 +25,7 @@ export const protect = asyncHandler(async (req, res, next) => {
   next();
 });
 
-export const authorize = (...roles) => {
+exports.authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
       return next(appError("Forbidden. Access denied", 403));

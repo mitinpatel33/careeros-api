@@ -16,7 +16,7 @@ const buildAuthResponse = (user, accessToken, refreshToken) => ({
   refreshToken,
 });
 
-export const signup = async (req, res) => {
+exports.signup = async (req, res) => {
   try {
     const { firstName, lastName, email, password, registrationType } = req.body;
 
@@ -59,7 +59,7 @@ export const signup = async (req, res) => {
   }
 };
 
-export const login = async (req, res) => {
+exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -101,7 +101,7 @@ export const login = async (req, res) => {
   }
 };
 
-export const refreshToken = async (req, res) => {
+exports.refreshToken = async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
@@ -133,7 +133,7 @@ export const refreshToken = async (req, res) => {
   }
 };
 
-export const logout = (req, res) => {
+exports.logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
 

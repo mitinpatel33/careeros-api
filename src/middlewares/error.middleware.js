@@ -1,4 +1,5 @@
-const errorResponse = require("../utils/apiResponse");
+const { errorResponse } = require("../utils/apiResponse");
+
 
 exports.notFound = (req, res, next) => {
   return errorResponse(res, `Route not found: ${req.originalUrl}`, 404);

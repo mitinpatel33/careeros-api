@@ -1,8 +1,19 @@
-
-const { ProfileAchievement, ProfileCertificate, ProfileContactInfo, ProfileEducation, ProfileExperience, ProfileLanguage, ProfilePersonalInfo, ProfileProject, ProfileSkill, ProfileSocialInfo, ProfileSummary, ProfileSetting } = require("../models/candidate-profile.model.js"); 
+const {
+  ProfileAchievement,
+  ProfileCertificate,
+  ProfileContactInfo,
+  ProfileEducation,
+  ProfileExperience,
+  ProfileLanguage,
+  ProfilePersonalInfo,
+  ProfileProject,
+  ProfileSkill,
+  ProfileSocialInfo,
+  ProfileSummary,
+  ProfileSetting,
+} = require("../models/candidate-profile.model.js");
 const { successResponse } = require("../utils/apiResponse.js");
 const { asyncHandler } = require("../utils/asyncHandler");
-
 
 const singleSectionModels = {
   personal: ProfilePersonalInfo,
@@ -30,11 +41,7 @@ exports.getSingleSection = (section) =>
       userId: req.user._id,
     }).lean();
 
-    return successResponse(
-      res,
-      `${section} fetched successfully.`,
-      data
-    );
+    return successResponse(res, `${section} fetched successfully.`, data);
   });
 
 exports.saveSingleSection = (section) =>
@@ -55,14 +62,10 @@ exports.saveSingleSection = (section) =>
         new: true,
         upsert: true,
         runValidators: true,
-      }
+      },
     ).lean();
 
-    return successResponse(
-      res,
-      `${section} saved successfully.`,
-      data
-    );
+    return successResponse(res, `${section} saved successfully.`, data);
   });
 
 exports.deleteSingleSection = (section) =>
@@ -73,11 +76,7 @@ exports.deleteSingleSection = (section) =>
       userId: req.user._id,
     });
 
-    return successResponse(
-      res,
-      `${section} deleted successfully.`,
-      null
-    );
+    return successResponse(res, `${section} deleted successfully.`, null);
   });
 
 exports.getCollection = (section) =>
@@ -90,11 +89,7 @@ exports.getCollection = (section) =>
       .sort({ displayOrder: 1, createdAt: -1 })
       .lean();
 
-    return successResponse(
-      res,
-      `${section} fetched successfully.`,
-      data
-    );
+    return successResponse(res, `${section} fetched successfully.`, data);
   });
 
 exports.getCollectionById = (section) =>
@@ -110,11 +105,7 @@ exports.getCollectionById = (section) =>
       throw appError(`${section} record not found.`, 404);
     }
 
-    return successResponse(
-      res,
-      `${section} fetched successfully.`,
-      data
-    );
+    return successResponse(res, `${section} fetched successfully.`, data);
   });
 
 exports.saveCollection = (section) =>
@@ -135,26 +126,22 @@ exports.saveCollection = (section) =>
         {
           new: true,
           runValidators: true,
-        }
+        },
       ).lean();
 
       if (!data) {
         throw appError(`${section} record not found.`, 404);
       }
     } else {
-      data = await Model.create({
-        ...req.body,
+      const payload = req.body.map((item) => ({
+        ...item,
         userId: req.user._id,
-      });
+      }));
 
-      data = data.toObject();
+      data = await Model.insertMany(payload);
     }
 
-    return successResponse(
-      res,
-      `${section} saved successfully.`,
-      data
-    );
+    return successResponse(res, `${section} saved successfully.`, data);
   });
 
 exports.deleteCollection = (section) =>
@@ -170,11 +157,7 @@ exports.deleteCollection = (section) =>
       throw appError(`${section} record not found.`, 404);
     }
 
-    return successResponse(
-      res,
-      `${section} deleted successfully.`,
-      null
-    );
+    return successResponse(res, `${section} deleted successfully.`, null);
   });
 
 exports.getCompletion = asyncHandler(async (req, res) => {
@@ -249,7 +232,7 @@ exports.publishProfile = asyncHandler(async (req, res) => {
     {
       new: true,
       upsert: true,
-    }
+    },
   ).lean();
 
   return successResponse(res, "Profile published successfully.", setting);

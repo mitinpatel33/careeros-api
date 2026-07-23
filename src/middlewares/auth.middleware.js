@@ -12,11 +12,13 @@ exports.protect = asyncHandler(async (req, res, next) => {
 
   const token = authHeader.split(" ")[1];
 
-  const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-  const user = await User.findById(decoded.userId).select("-passwordHash");
+  const user = await User.findById(decoded.userId);
 
-  if (!user || user.isActive) {
+  // const user = await User.findById(decoded.userId).select("-passwordHash");
+
+  if (!user || !user.isActive) {
     throw appError("Unauthorized. Invalid user", 401);
   }
 

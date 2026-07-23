@@ -12,6 +12,7 @@ const {
   ProfileSummary,
   ProfileSetting,
 } = require("../models/candidate-profile.model.js");
+const { User } = require("../models/user.model.js");
 const { successResponse } = require("../utils/apiResponse.js");
 const { asyncHandler } = require("../utils/asyncHandler");
 
@@ -218,22 +219,152 @@ exports.getCompletion = asyncHandler(async (req, res) => {
   });
 });
 
+// exports.publishProfile = asyncHandler(async (req, res) => {
+//   const userId = req.user._id;
+
+//   const setting = await ProfileSetting.findOneAndUpdate(
+//     { userId },
+//     {
+//       $set: {
+//         isPublished: true,
+//         livePortfolioEnabled: true,
+//       },
+//     },
+//     {
+//       new: true,
+//       upsert: true,
+//     },
+//   ).lean();
+
+//   return successResponse(res, "Profile published successfully.", setting);
+// });
+
+// controllers/profileController.js
+
+// ✅ Helper – fetch full profile by user ID (reusable)
+exports.fetchFullProfileByUserId = async (userId) => {
+  const [
+    personal,
+    summary,
+    education,
+    experience,
+    skills,
+    projects,
+    certificates,
+    achievements,
+    languages,
+    social,
+    contact,
+  ] = await Promise.all([
+    ProfilePersonalInfo.findOne({ userId }),
+    ProfileSummary.findOne({ userId }),
+    ProfileEducation.find({ userId }).sort({ displayOrder: 1 }),
+    ProfileExperience.find({ userId }).sort({ displayOrder: 1 }),
+    ProfileSkill.find({ userId }).sort({ displayOrder: 1 }),
+    ProfileProject.find({ userId }).sort({ displayOrder: 1 }),
+    ProfileCertificate.find({ userId }).sort({ displayOrder: 1 }),
+    ProfileAchievement.find({ userId }).sort({ displayOrder: 1 }),
+    ProfileLanguage.find({ userId }).sort({ displayOrder: 1 }),
+    ProfileSocialInfo.findOne({ userId }),
+    ProfileContactInfo.findOne({ userId }),
+  ]);
+
+  return {
+    personal,
+    summary,
+    education,
+    experience,
+    skills,
+    projects,
+    certificates,
+    achievements,
+    languages,
+    social,
+    contact,
+  };
+};
+
+// Keep your existing controller for the API (if needed)
+// exports.getFullProfile = asyncHandler(async (req, res) => {
+//   const profile = await fetchFullProfileByUserId(req._id);
+//   res.json({ success: true, data: profile });
+// });
+
+exports.checkSlug = asyncHandler(async (req, res) => {
+  const { slug } = req.query;
+  if (!slug || slug.length < 3 || slug.length > 30) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Slug must be 3‑30 characters." });
+  }
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    return res.status(400).json({
+      success: false,
+      message: "Only lowercase letters, numbers, and hyphens.",
+    });
+  }
+  const reserved = [
+    "admin",
+    "api",
+    "www",
+    "support",
+    "blog",
+    "help",
+    "login",
+    "signup",
+  ];
+  if (reserved.includes(slug)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "This URL is reserved." });
+  }
+
+  const existingUser = await User.findOne({ profileSlug: slug });
+  res.json({ available: !existingUser });
+});
+
+// Publish resume (authenticated)
 exports.publishProfile = asyncHandler(async (req, res) => {
+  const { slug } = req.body;
   const userId = req.user._id;
 
-  const setting = await ProfileSetting.findOneAndUpdate(
-    { userId },
-    {
-      $set: {
-        isPublished: true,
-        livePortfolioEnabled: true,
-      },
-    },
-    {
-      new: true,
-      upsert: true,
-    },
-  ).lean();
+  if (!slug || slug.length < 3 || slug.length > 30) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Slug must be 3‑30 characters." });
+  }
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    return res
+      .status(400)
+      .json({
+        success: false,
+        message: "Only lowercase letters, numbers, and hyphens.",
+      });
+  }
 
-  return successResponse(res, "Profile published successfully.", setting);
+  const existingOwner = await User.findOne({
+    profileSlug: slug,
+    _id: { $ne: userId },
+  });
+  if (existingOwner) {
+    return res
+      .status(400)
+      .json({ success: false, message: "This URL is already taken." });
+  }
+
+  const domain = process.env.RESUME_DOMAIN || `${req.headers.host}`;
+  const fullUrl = `http://${domain}/resume/${slug}`;
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    {
+      profileSlug: slug,
+      publishedUrl: fullUrl,
+      isPublished: true,
+      publishedAt: new Date(),
+    },
+    { new: true },
+  );
+
+  res.json({ success: true, message: "Resume published!", url: fullUrl });
 });

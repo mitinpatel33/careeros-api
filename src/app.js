@@ -4,13 +4,19 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
+const path = require('path');
 
 const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
+const publicRoutes = require("./routes/public-resume.routes");
 const { errorHandler, notFound } = require("./middlewares/error.middleware");
 const { success } = require("zod");
 
 const app = express();
+
+// view engine setup
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
 const allowedOrigins = 'http://localhost:5173';
 
@@ -54,6 +60,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/candidate/profile", profileRoutes);
+app.use('/', publicRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

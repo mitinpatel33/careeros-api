@@ -16,6 +16,7 @@ const {
   getCollectionById,
   saveCollection,
   deleteCollection,
+  checkSlug,
 } = require("../controllers/candidateProfile.controller");
 
 const { personalInfo } = require("../validations/candidateProfile.validation");
@@ -36,7 +37,7 @@ router.use(authorize(ROLES.CANDIDATE));
 
 router.get("/completion", getCompletion);
 
-router.post("/publish", publishProfile);
+// router.post("/publish", publishProfile);
 
 // ===============================
 // Single Object Sections
@@ -96,5 +97,8 @@ collectionSections.forEach((section) => {
   // Delete
   router.delete(`/${section}/:id`, deleteCollection(section));
 });
+
+router.get('/check-slug', checkSlug);
+router.post('/publish', protect, publishProfile);
 
 module.exports = router;

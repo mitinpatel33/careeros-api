@@ -1,6 +1,6 @@
-const jwt = require("jsonwebtoken");
+const jwt = require('jsonwebtoken');
 
-export const generateAccessToken = (user) => {
+exports.generateAccessToken = (user) => {
   return jwt.sign(
     {
       userId: user._id,
@@ -8,21 +8,24 @@ export const generateAccessToken = (user) => {
       email: user.email,
     },
 
-    ProcessingInstruction.env.JWT_ACCESS_SECRET,
+    process.env.JWT_SECRET,
+
     {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRE,
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRE || '15m',
     },
   );
 };
 
-export const generateRefreshToken = (user) => {
+exports.generateRefreshToken = (user) => {
   return jwt.sign(
     {
       userId: user._id,
     },
+
     process.env.JWT_REFRESH_SECRET,
+
     {
-      expiresIn: process.env.REFRESH_TOKEN_EXPIRE,
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRE || '7d',
     },
   );
 };

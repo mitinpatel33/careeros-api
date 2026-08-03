@@ -1,23 +1,25 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/user.model");
-const appError = require("../utils/appError");
-const asyncHandler = require("../utils/asyncHandler");
+const jwt = require('jsonwebtoken');
+const { asyncHandler } = require('../utils/asyncHandler');
+const { User } = require('../models/user.model');
+const { appError } = require('../utils/appError');
 
-export const protect = asyncHandler(async (req, res, next) => {
+exports.protect = asyncHandler(async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer")) {
-    throw appError("Unauthorozed. Token missing", 401);
+  if (!authHeader || !authHeader.startsWith('Bearer')) {
+    throw appError('Unauthorozed. Token missing', 401);
   }
 
-  const token = authHeader.split(" ")[1];
+  const token = authHeader.split(' ')[1];
 
-  const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-  const user = await User.findById(decoded.userId).select("-passwordHash");
+  const user = await User.findById(decoded.userId);
 
-  if (!user || user.isActive) {
-    throw appError("Unauthorized. Invalid user", 401);
+  // const user = await User.findById(decoded.userId).select('-passwordHash');
+
+  if (!user || !user.isActive) {
+    throw appError('Unauthorized. Invalid user', 401);
   }
 
   req.user = user;
@@ -25,10 +27,10 @@ export const protect = asyncHandler(async (req, res, next) => {
   next();
 });
 
-export const authorize = (...roles) => {
+exports.authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
-      return next(appError("Forbidden. Access denied", 403));
+      return next(appError('Forbidden. Access denied', 403));
     }
 
     next();

@@ -1,5 +1,5 @@
-export const ROLES = {
-    CANDIDATE: "Candidate",
-    COMPANY: "Company",
-    ADMIN: "Admin",
+exports.ROLES = {
+    CANDIDATE: 'Candidate',
+    COMPANY: 'Company',
+    ADMIN: 'Admin',
 }

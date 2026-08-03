@@ -60,7 +60,7 @@ exports.saveSingleSection = (section) =>
         },
       },
       {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         runValidators: true,
       },
@@ -113,19 +113,13 @@ exports.saveCollection = (section) =>
   asyncHandler(async (req, res) => {
     const Model = collectionSectionModels[section];
 
-    let data;
-
+    // Single document update by ID
     if (req.params.id) {
-      data = await Model.findOneAndUpdate(
+      const data = await Model.findOneAndUpdate(
+        { _id: req.params.id, userId: req.user._id },
+        { $set: req.body },
         {
-          _id: req.params.id,
-          userId: req.user._id,
-        },
-        {
-          $set: req.body,
-        },
-        {
-          new: true,
+          returnDocument: "after", // 👈 fix deprecation
           runValidators: true,
         },
       ).lean();
@@ -133,14 +127,23 @@ exports.saveCollection = (section) =>
       if (!data) {
         throw appError(`${section} record not found.`, 404);
       }
-    } else {
-      const payload = req.body.map((item) => ({
-        ...item,
-        userId: req.user._id,
-      }));
 
-      data = await Model.insertMany(payload);
+      return successResponse(res, `${section} saved successfully.`, data);
     }
+
+    // Bulk replace: delete old, insert new (no _id to avoid duplicates)
+    const items = req.body; // expected to be an array
+
+    // Remove all existing records for this user/section
+    await Model.deleteMany({ userId: req.user._id });
+
+    // Strip any `_id` that might be present and ensure userId is set
+    const newItems = items.map((item) => {
+      const { _id, ...rest } = item; // ignore existing _id
+      return { ...rest, userId: req.user._id };
+    });
+
+    const data = await Model.insertMany(newItems);
 
     return successResponse(res, `${section} saved successfully.`, data);
   });
@@ -219,29 +222,7 @@ exports.getCompletion = asyncHandler(async (req, res) => {
   });
 });
 
-// exports.publishProfile = asyncHandler(async (req, res) => {
-//   const userId = req.user._id;
-
-//   const setting = await ProfileSetting.findOneAndUpdate(
-//     { userId },
-//     {
-//       $set: {
-//         isPublished: true,
-//         livePortfolioEnabled: true,
-//       },
-//     },
-//     {
-//       new: true,
-//       upsert: true,
-//     },
-//   ).lean();
-
-//   return successResponse(res, "Profile published successfully.", setting);
-// });
-
-// controllers/profileController.js
-
-// ✅ Helper – fetch full profile by user ID (reusable)
+// Helper – fetch full profile by user ID (reusable)
 exports.fetchFullProfileByUserId = async (userId) => {
   const [
     personal,
@@ -283,12 +264,6 @@ exports.fetchFullProfileByUserId = async (userId) => {
     contact,
   };
 };
-
-// Keep your existing controller for the API (if needed)
-// exports.getFullProfile = asyncHandler(async (req, res) => {
-//   const profile = await fetchFullProfileByUserId(req._id);
-//   res.json({ success: true, data: profile });
-// });
 
 exports.checkSlug = asyncHandler(async (req, res) => {
   const { slug } = req.query;
@@ -334,12 +309,10 @@ exports.publishProfile = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Slug must be 3‑30 characters." });
   }
   if (!/^[a-z0-9-]+$/.test(slug)) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Only lowercase letters, numbers, and hyphens.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Only lowercase letters, numbers, and hyphens.",
+    });
   }
 
   const existingOwner = await User.findOne({
@@ -367,4 +340,34 @@ exports.publishProfile = asyncHandler(async (req, res) => {
   );
 
   res.json({ success: true, message: "Resume published!", url: fullUrl });
+});
+
+exports.getProfileSections = asyncHandler(async (req, res) => {
+  const { include } = req.query;
+  if (!include) return successResponse(res, "No sections requested.", {});
+
+  const requested = include.split(",").map((s) => s.trim());
+  const userId = req.user._id;
+
+  // fetch single and collection sections in parallel
+  const results = await Promise.all([
+    ...requested
+      .filter((k) => singleSectionModels[k])
+      .map(async (key) => {
+        const data = await singleSectionModels[key].findOne({ userId }).lean();
+        return { [key]: data };
+      }),
+    ...requested
+      .filter((k) => collectionSectionModels[k])
+      .map(async (key) => {
+        const data = await collectionSectionModels[key]
+          .find({ userId })
+          .sort({ displayOrder: 1, createdAt: -1 })
+          .lean();
+        return { [key]: data };
+      }),
+  ]);
+
+  const response = Object.assign({}, ...results);
+  return successResponse(res, "Sections fetched successfully.", response);
 });

@@ -1,8 +1,8 @@
-const express = require("express");
+const express = require('express');
 
-const { protect, authorize } = require("../middlewares/auth.middleware");
+const { protect, authorize } = require('../middlewares/auth.middleware');
 
-const { ROLES } = require("../constants/roles");
+const { ROLES } = require('../constants/roles');
 
 const {
   getCompletion,
@@ -17,11 +17,12 @@ const {
   saveCollection,
   deleteCollection,
   checkSlug,
-} = require("../controllers/candidateProfile.controller");
+  getProfileSections,
+} = require('../controllers/candidateProfile.controller');
 
-const { personalInfo } = require("../validations/candidateProfile.validation");
+const { personalInfo } = require('../validations/candidateProfile.validation');
 
-// const validateRequest = require("../middlewares/validate.middleware");
+// const validateRequest = require('../middlewares/validate.middleware');
 
 const router = express.Router();
 
@@ -35,15 +36,15 @@ router.use(authorize(ROLES.CANDIDATE));
 // Profile Common APIs
 // ===============================
 
-router.get("/completion", getCompletion);
+router.get('/completion', getCompletion);
 
-// router.post("/publish", publishProfile);
+// router.post('/publish', publishProfile);
 
 // ===============================
 // Single Object Sections
 // ===============================
 
-const singleSections = ["personal", "summary", "contact", "social", "settings"];
+const singleSections = ['personal', 'summary', 'contact', 'social', 'settings'];
 
 singleSections.forEach((section) => {
   // Get Section
@@ -72,13 +73,13 @@ singleSections.forEach((section) => {
 // ===============================
 
 const collectionSections = [
-  "skills",
-  "educations",
-  "experiences",
-  "projects",
-  "certificates",
-  "achievements",
-  "languages",
+  'skills',
+  'educations',
+  'experiences',
+  'projects',
+  'certificates',
+  'achievements',
+  'languages',
 ];
 
 collectionSections.forEach((section) => {
@@ -100,5 +101,7 @@ collectionSections.forEach((section) => {
 
 router.get('/check-slug', checkSlug);
 router.post('/publish', protect, publishProfile);
+
+router.get('/sections', getProfileSections);
 
 module.exports = router;

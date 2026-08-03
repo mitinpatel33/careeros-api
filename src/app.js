@@ -4,21 +4,26 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
-const path = require('path');
+const path = require("path");
 
 const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
 const publicRoutes = require("./routes/public-resume.routes");
+const aiRoutes = require("./routes/ai.routes");
 const { errorHandler, notFound } = require("./middlewares/error.middleware");
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('../swagger-output.json'); 
 const { success } = require("zod");
+const ejs = require('ejs');
 
 const app = express();
 
 // view engine setup
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+app.engine("html", ejs.renderFile); // tell Express to use EJS for .html files
+app.set("view engine", "html"); // keep your existing engine setting
+app.set("views", path.join(__dirname, "views"));
 
-const allowedOrigins = 'http://localhost:5173';
+const allowedOrigins = "http://localhost:5173";
 
 app.use(
   cors({
@@ -60,7 +65,10 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/candidate/profile", profileRoutes);
-app.use('/', publicRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/", publicRoutes);
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use(notFound);
 app.use(errorHandler);

@@ -1,6 +1,6 @@
-const dotenv = require("dotenv");
-const connectDB = require("./src/config/db");
-const app = require("./src/app");
+const dotenv = require('dotenv');
+const connectDB = require('./src/config/db');
+const app = require('./src/app');
 
 dotenv.config();
 
@@ -17,10 +17,10 @@ const PORT = process.env.PORT || 5000;
     await connectDB();
 
     app.listen(PORT, () => {
-      console.log("--------------------------------");
+      console.log('--------------------------------');
       console.log(`Server Running : ${PORT}`);
       console.log(`Environment    : ${process.env.NODE_ENV}`);
-      console.log("--------------------------------");
+      console.log('--------------------------------');
     });
   } catch (error) {
     console.error(error);

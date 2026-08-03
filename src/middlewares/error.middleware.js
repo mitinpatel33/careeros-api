@@ -1,4 +1,4 @@
-const { errorResponse } = require("../utils/apiResponse");
+const { errorResponse } = require('../utils/apiResponse');
 
 
 exports.notFound = (req, res, next) => {
@@ -6,13 +6,13 @@ exports.notFound = (req, res, next) => {
 };
 
 exports.errorHandler = (error, req, res, next) => {
-  console.error("API Error:", error);
+  console.error('API Error:', error);
 
   const statusCode = error.statusCode || 500;
 
   return errorResponse(
     res,
-    error.message || "Internal server error",
+    error.message || 'Internal server error',
     statusCode,
   );
 };

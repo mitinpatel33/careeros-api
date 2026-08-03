@@ -1,10 +1,10 @@
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const { generateAccessToken, generateRefreshToken } = require("../utils/token");
-const { User } = require("../models/user.model");
-const { asyncHandler } = require("../utils/asyncHandler");
-const { appError } = require("../utils/appError");
-const { successResponse } = require("../utils/apiResponse");
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { generateAccessToken, generateRefreshToken } = require('../utils/token');
+const { User } = require('../models/user.model');
+const { asyncHandler } = require('../utils/asyncHandler');
+const { appError } = require('../utils/appError');
+const { successResponse } = require('../utils/apiResponse');
 
 const buildAuthResponse = (user, accessToken, refreshToken) => ({
   userId: user._id,
@@ -18,7 +18,7 @@ exports.signup = asyncHandler(async (req, res) => {
   const { firstName, lastName, email, password, registrationType } = req.body;
 
   if (!firstName || !lastName || !email || !password || !registrationType) {
-    throw appError("Required fields are missing.", 400);
+    throw appError('Required fields are missing.', 400);
   }
 
   const existingUser = await User.findOne({
@@ -26,7 +26,7 @@ exports.signup = asyncHandler(async (req, res) => {
   }).lean();
 
   if (existingUser) {
-    throw appError("Email already exists.", 400);
+    throw appError('Email already exists.', 400);
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -48,7 +48,7 @@ exports.signup = asyncHandler(async (req, res) => {
 
   return successResponse(
     res,
-    "Signup successfully.",
+    'Signup successfully.',
     buildAuthResponse(user, accessToken, refreshToken),
     201,
   );
@@ -58,7 +58,7 @@ exports.login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    throw appError("Email and password are required.", 400);
+    throw appError('Email and password are required.', 400);
   }
 
   const user = await User.findOne({
@@ -66,26 +66,26 @@ exports.login = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    throw appError("Invalid email or password.", 401);
+    throw appError('Invalid email or password.', 401);
   }
 
   const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
   if (!isPasswordValid) {
-    throw appError("Invalid email or password.", 401);
+    throw appError('Invalid email or password.', 401);
   }
 
   if (!user.isActive) {
-    throw appError("User account is inactive.", 400);
+    throw appError('User account is inactive.', 400);
   }
 
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
 
-  res.cookie("refreshToken", refreshToken, {
+  res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: false,
-    sameSite: "strict",
+    sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
@@ -94,7 +94,7 @@ exports.login = asyncHandler(async (req, res) => {
 
   return successResponse(
     res,
-    "Login successfully.",
+    'Login successfully.',
     buildAuthResponse(user, accessToken, refreshToken),
   );
 });
@@ -103,7 +103,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
-    throw appError("Refresh token is required.", 400);
+    throw appError('Refresh token is required.', 400);
   }
 
   const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
@@ -111,7 +111,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   const user = await User.findById(decoded.userId);
 
   if (!user || user.refreshToken !== refreshToken) {
-    throw appError("Invalid refresh token.", 401);
+    throw appError('Invalid refresh token.', 401);
   }
 
   const accessToken = generateAccessToken(user);
@@ -122,7 +122,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
 
   return successResponse(
     res,
-    "Token refreshed successfully.",
+    'Token refreshed successfully.',
     buildAuthResponse(user, accessToken, newRefreshToken),
   );
 });
@@ -131,7 +131,7 @@ exports.logout = asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
-    throw appError("Refresh token is required.", 400);
+    throw appError('Refresh token is required.', 400);
   }
 
   await User.updateOne(
@@ -143,5 +143,5 @@ exports.logout = asyncHandler(async (req, res) => {
     },
   );
 
-  return successResponse(res, "Logout successfully.", null);
+  return successResponse(res, 'Logout successfully.', null);
 });

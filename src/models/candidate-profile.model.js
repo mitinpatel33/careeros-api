@@ -64,7 +64,7 @@ const candidateSummarySchema = new mongoose.Schema(
       index: true,
     },
 
-    summary: {
+    professionalSummary: {
       type: String,
       trim: true,
     },
@@ -79,7 +79,10 @@ const candidateSummarySchema = new mongoose.Schema(
   },
 );
 
-module.exports.ProfileSummary = mongoose.model("candidateSummary", candidateSummarySchema);
+module.exports.ProfileSummary = mongoose.model(
+  "candidateSummary",
+  candidateSummarySchema,
+);
 
 const candidateContactInfoSchema = new mongoose.Schema(
   {
@@ -149,10 +152,10 @@ const candidateSocialInfoSchema = new mongoose.Schema(
       index: true,
     },
 
-    linkedInUrl: String,
-    gitHubUrl: String,
-    portfolioUrl: String,
-    websiteUrl: String,
+    linkedInUrl: { type: String },
+    gitHubUrl: { type: String },
+    portfolioUrl: { type: String },
+    websiteUrl: { type: String },
   },
   {
     timestamps: true,
@@ -195,7 +198,10 @@ const candidateSkillSchema = new mongoose.Schema(
   },
 );
 
-module.exports.ProfileSkill = mongoose.model("candidateSkill", candidateSkillSchema);
+module.exports.ProfileSkill = mongoose.model(
+  "candidateSkill",
+  candidateSkillSchema,
+);
 
 const candidateEducationSchema = new mongoose.Schema(
   {
@@ -224,7 +230,10 @@ const candidateEducationSchema = new mongoose.Schema(
   },
 );
 
-module.exports.ProfileEducation = mongoose.model("candidateEducation", candidateEducationSchema);
+module.exports.ProfileEducation = mongoose.model(
+  "candidateEducation",
+  candidateEducationSchema,
+);
 
 const candidateExperienceSchema = new mongoose.Schema(
   {
@@ -235,17 +244,17 @@ const candidateExperienceSchema = new mongoose.Schema(
       index: true,
     },
 
-    companyName: String,
+    companyName: { type: String },
 
-    designation: String,
+    designation: { type: String },
 
-    employmentType: String,
+    employmentType: { type: String },
 
-    location: String,
+    location: { type: String },
 
-    startDate: Date,
+    startDate: { type: Date },
 
-    endDate: Date,
+    endDate: { type: Date },
 
     isCurrentCompany: {
       type: Boolean,
@@ -288,7 +297,10 @@ const candidateProjectSchema = new mongoose.Schema(
   },
 );
 
-module.exports.ProfileProject = mongoose.model("candidateProject", candidateProjectSchema);
+module.exports.ProfileProject = mongoose.model(
+  "candidateProject",
+  candidateProjectSchema,
+);
 
 const candidateCertificateSchema = new mongoose.Schema(
   {
@@ -365,7 +377,10 @@ const candidateLanguageSchema = new mongoose.Schema(
   },
 );
 
-module.exports.ProfileLanguage = mongoose.model("candidateLanguage", candidateLanguageSchema);
+module.exports.ProfileLanguage = mongoose.model(
+  "candidateLanguage",
+  candidateLanguageSchema,
+);
 
 const candidateSettingSchema = new mongoose.Schema(
   {
@@ -392,4 +407,7 @@ const candidateSettingSchema = new mongoose.Schema(
   },
 );
 
-module.exports.ProfileSetting = mongoose.model("candidateSetting", candidateSettingSchema);
+module.exports.ProfileSetting = mongoose.model(
+  "candidateSetting",
+  candidateSettingSchema,
+);

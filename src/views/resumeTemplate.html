@@ -1,0 +1,1062 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      <%= (profile?.personal?.firstName || 'Jane') + ' ' +
+      (profile?.personal?.lastName || 'Doe') %>
+    </title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ─────────── CSS Variables ─────────── */
+      :root {
+        --glass-bg: rgba(255, 255, 255, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.25);
+        --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+        --primary: #4f46e5;
+        --primary-light: #818cf8;
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --radius: 20px;
+        --transition: 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background: #f1f5f9;
+        color: var(--text-primary);
+        line-height: 1.6;
+        min-height: 100vh;
+        padding: 2rem 1.5rem;
+        overflow-x: hidden;
+        background-image:
+          radial-gradient(
+            circle at 10% 20%,
+            rgba(79, 70, 229, 0.05) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 90% 80%,
+            rgba(129, 140, 248, 0.08) 0%,
+            transparent 60%
+          );
+        background-attachment: fixed;
+      }
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        position: relative;
+        z-index: 2;
+      }
+
+      /* ─── Background Morphing Shapes ─── */
+      .bg-shapes {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+        overflow: hidden;
+      }
+      .bg-shape {
+        position: absolute;
+        border-radius: 50%;
+        background: rgba(79, 70, 229, 0.06);
+        animation: morph 20s ease-in-out infinite alternate;
+      }
+      .bg-shape:nth-child(1) {
+        width: 300px;
+        height: 300px;
+        top: -10%;
+        left: -5%;
+        animation-delay: 0s;
+      }
+      .bg-shape:nth-child(2) {
+        width: 400px;
+        height: 400px;
+        bottom: -10%;
+        right: -10%;
+        animation-delay: -5s;
+        background: rgba(129, 140, 248, 0.05);
+      }
+      .bg-shape:nth-child(3) {
+        width: 200px;
+        height: 200px;
+        top: 40%;
+        left: 50%;
+        animation-delay: -10s;
+        background: rgba(79, 70, 229, 0.04);
+      }
+      @keyframes morph {
+        0% {
+          border-radius: 50% 50% 50% 50%;
+          transform: translate(0, 0) scale(1);
+        }
+        33% {
+          border-radius: 60% 40% 40% 60%;
+          transform: translate(20px, -30px) scale(1.1);
+        }
+        66% {
+          border-radius: 30% 70% 60% 40%;
+          transform: translate(-20px, 20px) scale(0.9);
+        }
+        100% {
+          border-radius: 50% 50% 50% 50%;
+          transform: translate(0, 0) scale(1);
+        }
+      }
+
+      /* ─── Glassmorphism ─── */
+      .glass {
+        background: var(--glass-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--glass-shadow);
+        border-radius: var(--radius);
+        transition:
+          transform var(--transition),
+          box-shadow var(--transition);
+      }
+      .glass:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.1);
+      }
+
+      /* ─── Base Animations ─── */
+      @keyframes fadeSlideUp {
+        from {
+          opacity: 0;
+          transform: translateY(30px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-12px);
+        }
+      }
+      @keyframes growWidth {
+        from {
+          width: 0;
+        }
+      }
+      @keyframes pulseGlow {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 0 25px rgba(79, 70, 229, 0);
+        }
+      }
+      @keyframes shimmer {
+        0% {
+          background-position: -200% center;
+        }
+        100% {
+          background-position: 200% center;
+        }
+      }
+
+      .animate-in {
+        opacity: 0;
+        animation: fadeSlideUp 0.8s ease forwards;
+      }
+      .delay-1 {
+        animation-delay: 0.1s;
+      }
+      .delay-2 {
+        animation-delay: 0.2s;
+      }
+      .delay-3 {
+        animation-delay: 0.3s;
+      }
+      .delay-4 {
+        animation-delay: 0.4s;
+      }
+      .delay-5 {
+        animation-delay: 0.5s;
+      }
+
+      /* ─── Hero ─── */
+      .hero {
+        padding: 3rem 2.5rem;
+        margin-bottom: 2.5rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.1s ease; /* for 3D tilt */
+        transform-style: preserve-3d;
+        perspective: 800px;
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(
+          circle,
+          rgba(79, 70, 229, 0.15),
+          transparent 70%
+        );
+        border-radius: 50%;
+        pointer-events: none;
+      }
+      .hero-content {
+        position: relative;
+        z-index: 1;
+      }
+
+      .avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: linear-gradient(
+          135deg,
+          var(--primary),
+          var(--primary-light)
+        );
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.2rem;
+        font-size: 3.2rem;
+        color: #fff;
+        font-weight: 700;
+        animation:
+          float 4s ease-in-out infinite,
+          pulseGlow 3s ease-in-out infinite;
+        overflow: hidden;
+        box-shadow: 0 8px 30px rgba(79, 70, 229, 0.35);
+      }
+      .avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .name {
+        font-size: clamp(2.2rem, 6vw, 3.8rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #1e293b, var(--primary), #1e293b);
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: shimmer 6s linear infinite;
+      }
+
+      .title {
+        font-size: 1.3rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+        margin-top: 0.2rem;
+      }
+      .hero-stats {
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+        margin-top: 2rem;
+        flex-wrap: wrap;
+      }
+      .stat {
+        background: rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(6px);
+        padding: 0.6rem 1.8rem;
+        border-radius: 40px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--text-secondary);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+      }
+      .stat strong {
+        color: var(--primary);
+      }
+
+      /* ─── CTA ─── */
+      .cta-bar {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 2.5rem;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.9rem 2.2rem;
+        border: none;
+        border-radius: 60px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: all var(--transition);
+        text-decoration: none;
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: var(--text-primary);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+      }
+      .btn-primary:hover {
+        background: #4338ca;
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 12px 32px rgba(79, 70, 229, 0.3);
+      }
+      .btn-outline {
+        background: transparent;
+        border: 2px solid var(--primary);
+        color: var(--primary);
+      }
+      .btn-outline:hover {
+        background: var(--primary);
+        color: #fff;
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px rgba(79, 70, 229, 0.2);
+      }
+
+      /* ─── Section titles ─── */
+      .section-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+      .section-title span {
+        background: linear-gradient(
+          135deg,
+          var(--primary),
+          var(--primary-light),
+          var(--primary)
+        );
+        background-size: 200% auto;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: shimmer 6s linear infinite;
+      }
+
+      /* ─── Cards ─── */
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2.5rem;
+      }
+      .product-card {
+        padding: 1.8rem;
+        background: var(--glass-bg);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius);
+        box-shadow: var(--glass-shadow);
+        transition: all var(--transition);
+        opacity: 0;
+        animation: fadeSlideUp 0.7s ease forwards;
+        transform: translateY(0);
+      }
+      .product-card:hover {
+        transform: translateY(-8px) scale(1.01);
+        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.08);
+        border-color: rgba(79, 70, 229, 0.2);
+      }
+
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 0.8rem;
+        margin-bottom: 0.8rem;
+        flex-wrap: wrap;
+      }
+      .badge {
+        background: rgba(79, 70, 229, 0.1);
+        color: var(--primary);
+        padding: 0.2rem 1rem;
+        border-radius: 30px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+        border: 1px solid rgba(79, 70, 229, 0.1);
+        transition:
+          transform 0.3s ease,
+          background 0.3s ease;
+        display: inline-block;
+      }
+      .badge-flip {
+        display: inline-block;
+        transition:
+          transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+          background 0.3s;
+        backface-visibility: hidden;
+      }
+      .badge-flip:hover {
+        transform: rotateY(180deg) scale(1.1);
+        background: var(--primary);
+        color: #fff;
+      }
+
+      .card-title {
+        font-weight: 700;
+        font-size: 1.15rem;
+        margin-bottom: 0.2rem;
+      }
+      .card-subtitle {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 0.6rem;
+      }
+      .card-desc {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        line-height: 1.7;
+      }
+
+      /* ─── Specs / Progress ─── */
+      .specs-container {
+        padding: 2rem;
+        background: var(--glass-bg);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius);
+        box-shadow: var(--glass-shadow);
+        margin-bottom: 2.5rem;
+        transition: all var(--transition);
+      }
+      .spec-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.9rem 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+        flex-wrap: wrap;
+        gap: 0.6rem;
+      }
+      .spec-item:last-child {
+        border-bottom: none;
+      }
+      .progress-bar {
+        width: 140px;
+        height: 8px;
+        background: rgba(0, 0, 0, 0.06);
+        border-radius: 20px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          var(--primary),
+          var(--primary-light)
+        );
+        border-radius: 20px;
+        width: 0;
+        animation: growWidth 1.2s ease forwards;
+      }
+
+      /* ─── Reviews / Achievements ─── */
+      .reviews-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.2rem;
+        margin-bottom: 2.5rem;
+      }
+      .review-card {
+        padding: 1.5rem;
+        background: var(--glass-bg);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius);
+        box-shadow: var(--glass-shadow);
+        transition: all var(--transition);
+        text-align: center;
+      }
+      .review-card:hover {
+        transform: scale(1.03) rotate(0.5deg);
+        border-color: rgba(79, 70, 229, 0.2);
+      }
+      .review-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        display: block;
+      }
+
+      /* ─── Social Icons ─── */
+      .social-bar {
+        display: flex;
+        justify-content: center;
+        gap: 1.2rem;
+        flex-wrap: wrap;
+        margin: 2rem 0;
+      }
+      .social-icon {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.7rem 1.6rem;
+        background: var(--glass-bg);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--glass-border);
+        border-radius: 60px;
+        text-decoration: none;
+        color: var(--text-primary);
+        font-weight: 500;
+        transition: all var(--transition);
+        box-shadow: var(--glass-shadow);
+      }
+      .social-icon:hover {
+        background: var(--primary);
+        color: #fff;
+        transform: translateY(-4px) rotate(360deg);
+        box-shadow: 0 12px 32px rgba(79, 70, 229, 0.25);
+        border-color: var(--primary);
+      }
+
+      .footer {
+        text-align: center;
+        padding: 2rem 0;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        opacity: 0.7;
+      }
+
+      /* ─── Responsive ─── */
+      @media (max-width: 640px) {
+        body {
+          padding: 1rem;
+        }
+        .hero {
+          padding: 2rem 1.2rem;
+        }
+        .btn {
+          width: 100%;
+          justify-content: center;
+        }
+        .spec-item {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .progress-bar {
+          width: 100%;
+        }
+      }
+
+      @media print {
+        body {
+          background: white !important;
+          padding: 0.5in;
+        }
+        .glass,
+        .product-card,
+        .specs-container,
+        .review-card {
+          background: white !important;
+          backdrop-filter: none !important;
+          border: 1px solid #ddd !important;
+          box-shadow: none !important;
+          transform: none !important;
+        }
+        .cta-bar,
+        .social-bar,
+        .footer,
+        .bg-shapes {
+          display: none;
+        }
+        .avatar {
+          animation: none !important;
+        }
+        .progress-fill {
+          animation: none !important;
+          width: 100% !important;
+        }
+        .badge-flip:hover {
+          transform: none !important;
+        }
+        .social-icon:hover {
+          transform: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Background Morphing Shapes -->
+    <div class="bg-shapes">
+      <div class="bg-shape"></div>
+      <div class="bg-shape"></div>
+      <div class="bg-shape"></div>
+    </div>
+
+    <div class="container">
+      <!-- ═══ HERO (with 3D tilt) ═══ -->
+      <div class="hero glass animate-in" id="heroCard">
+        <div class="hero-content">
+          <div class="avatar">
+            <% if (profile?.personal?.photoUrl) { %>
+            <img src="<%= profile.personal.photoUrl %>" alt="Profile Photo" />
+            <% } else { %> <%= (profile?.personal?.firstName?.[0] || 'J') +
+            (profile?.personal?.lastName?.[0] || 'D') %> <% } %>
+          </div>
+          <h1 class="name">
+            <%= profile?.personal?.firstName || 'Jane' %> <%=
+            profile?.personal?.lastName || 'Doe' %>
+          </h1>
+          <p class="title">
+            <%= profile?.personal?.jobTitle || 'Senior Full‑Stack Developer' %>
+          </p>
+          <div class="hero-stats">
+            <div class="stat">
+              💼
+              <strong><%= profile?.experience?.length || 0 %></strong>
+              Experiences
+            </div>
+            <div class="stat">
+              ⚡ <strong><%= profile?.skills?.length || 0 %></strong> Skills
+            </div>
+            <div class="stat">
+              🎓 <strong><%= profile?.education?.length || 0 %></strong> Degrees
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ CTA ═══ -->
+      <div class="cta-bar animate-in delay-1">
+        <button class="btn btn-primary" onclick="window.print()">
+          🖨️ Download Resume
+        </button>
+        <% if (profile?.contact?.email) { %>
+        <a href="mailto:<%= profile.contact.email %>" class="btn btn-outline"
+          >✉️ Hire Me</a
+        >
+        <% } else { %>
+        <a href="mailto:jane.doe@example.com" class="btn btn-outline"
+          >✉️ Hire Me</a
+        >
+        <% } %>
+      </div>
+
+      <!-- ═══ PERSONAL DETAILS ═══ -->
+      <div class="animate-in delay-2">
+        <h2 class="section-title">👤 <span>Personal Details</span></h2>
+        <div class="specs-container">
+          <div class="spec-item">
+            <span>Gender</span>
+            <span><%= profile?.personal?.gender || 'N/A' %></span>
+          </div>
+          <div class="spec-item">
+            <span>Marital Status</span>
+            <span><%= profile?.personal?.maritalStatus || 'N/A' %></span>
+          </div>
+          <div class="spec-item">
+            <span>Nationality</span>
+            <span><%= profile?.personal?.nationality || 'N/A' %></span>
+          </div>
+          <div class="spec-item">
+            <span>Date of Birth</span>
+            <span
+              ><%= profile?.personal?.dateOfBirth ? new
+              Date(profile.personal.dateOfBirth).toLocaleDateString('en-US', {
+              year:'numeric', month:'long', day:'numeric' }) : 'N/A' %></span
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ CONTACT INFO ═══ -->
+      <div class="animate-in delay-2">
+        <h2 class="section-title">📞 <span>Contact</span></h2>
+        <div class="specs-container">
+          <div class="spec-item">
+            <span>Email</span>
+            <span><%= profile?.contact?.email || 'N/A' %></span>
+          </div>
+          <div class="spec-item">
+            <span>Mobile</span>
+            <span><%= profile?.contact?.mobile || 'N/A' %></span>
+          </div>
+          <div class="spec-item">
+            <span>Address</span>
+            <span><%= profile?.contact?.address || 'N/A' %></span>
+          </div>
+          <div class="spec-item">
+            <span>Location</span>
+            <span
+              ><%= [profile?.contact?.city, profile?.contact?.state,
+              profile?.contact?.country,
+              profile?.contact?.pincode].filter(Boolean).join(', ') || 'N/A'
+              %></span
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ PROFESSIONAL SUMMARY ═══ -->
+      <% if (profile?.summary?.professionalSummary) { %>
+      <div class="animate-in delay-2">
+        <h2 class="section-title">📝 <span>Professional Summary</span></h2>
+        <div class="specs-container">
+          <p style="font-size: 1.05rem; line-height: 1.8">
+            <%= profile.summary.professionalSummary %>
+          </p>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- ═══ CAREER OBJECTIVE ═══ -->
+      <% if (profile?.summary?.careerObjective) { %>
+      <div class="animate-in delay-2">
+        <h2 class="section-title">🎯 <span>Career Objective</span></h2>
+        <div class="specs-container">
+          <p style="font-size: 1.05rem; line-height: 1.8">
+            <%= profile.summary.careerObjective %>
+          </p>
+        </div>
+      </div>
+      <% } %>
+
+      <!-- ═══ EXPERIENCE ═══ -->
+      <div class="animate-in delay-3">
+        <h2 class="section-title">💼 <span>Experience</span></h2>
+        <div class="card-grid">
+          <% if (profile?.experience?.length) { %> <%
+          profile.experience.forEach(function(exp, idx) { %>
+          <div
+            class="product-card"
+            style="animation-delay: <%= 0.1 * (idx + 1) %>s"
+          >
+            <div class="card-header">
+              <span class="card-title"><%= exp.title || 'Position' %></span>
+              <span class="badge">
+                <%= exp.startDate ? new
+                Date(exp.startDate).toLocaleDateString('en-US', {
+                year:'numeric', month:'short' }) : '' %> <% if (exp.startDate ||
+                exp.endDate || exp.isCurrentCompany) { %> – <% } %> <% if
+                (exp.isCurrentCompany) { %>Present<% } else { %><%= exp.endDate
+                ? new Date(exp.endDate).toLocaleDateString('en-US', {
+                year:'numeric', month:'short' }) : '' %><% } %>
+              </span>
+            </div>
+            <div class="card-subtitle"><%= exp.companyName || '' %></div>
+            <% if (exp.location) { %>
+            <div class="card-subtitle">📍 <%= exp.location %></div>
+            <% } %> <% if (exp.employmentType) { %>
+            <div
+              class="badge"
+              style="margin-top: 0.3rem; display: inline-block"
+            >
+              <%= exp.employmentType %>
+            </div>
+            <% } %> <% if (exp.description) { %>
+            <p class="card-desc"><%= exp.description %></p>
+            <% } %>
+          </div>
+          <% }) %> <% } else { %>
+          <div class="product-card" style="animation-delay: 0.1s">
+            <div class="card-header">
+              <span class="card-title">No experience added yet</span>
+            </div>
+            <div class="card-desc">
+              You can add your work history from the dashboard.
+            </div>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ═══ EDUCATION ═══ -->
+      <div class="animate-in delay-4">
+        <h2 class="section-title">🎓 <span>Education</span></h2>
+        <div class="card-grid">
+          <% if (profile?.education?.length) { %> <%
+          profile.education.forEach(function(edu, idx) { %>
+          <div
+            class="product-card"
+            style="animation-delay: <%= 0.1 * (idx + 1) %>s"
+          >
+            <div class="card-title"><%= edu.degree || 'Degree' %></div>
+            <div class="card-subtitle"><%= edu.institution || '' %></div>
+            <% if (edu.field) { %>
+            <div class="card-subtitle"><%= edu.field %></div>
+            <% } %> <% if (edu.percentage) { %>
+            <div class="card-desc">GPA: <%= edu.percentage %></div>
+            <% } %> <% if (edu.grade) { %>
+            <div class="card-desc">Grade: <%= edu.grade %></div>
+            <% } %> <% if (edu.description) { %>
+            <p class="card-desc"><%= edu.description %></p>
+            <% } %>
+            <span class="badge">
+              <%= edu.startDate ? new
+              Date(edu.startDate).toLocaleDateString('en-US', { year:'numeric'
+              }) : '' %> <% if (edu.startDate || edu.endDate) { %> – <% } %> <%=
+              edu.endDate ? new Date(edu.endDate).toLocaleDateString('en-US', {
+              year:'numeric' }) : '' %>
+            </span>
+          </div>
+          <% }) %> <% } else { %>
+          <div class="product-card" style="animation-delay: 0.1s">
+            <div class="card-title">No education added yet</div>
+            <div class="card-desc">
+              Add your academic background from the dashboard.
+            </div>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ═══ SKILLS ═══ -->
+      <div class="animate-in delay-5">
+        <h2 class="section-title">⚙️ <span>Skills &amp; Expertise</span></h2>
+        <div class="specs-container">
+          <% if (profile?.skills?.length) { %> <%
+          profile.skills.forEach(function(skill) { var pct = '50%'; var prof =
+          (skill.proficiency || 'Intermediate').toLowerCase(); if (prof ===
+          'expert') pct = '95%'; else if (prof === 'advanced') pct = '85%'; else
+          if (prof === 'intermediate') pct = '65%'; else if (prof ===
+          'beginner') pct = '35%'; %>
+          <div class="spec-item">
+            <span><%= skill.skillName || 'Skill' %></span>
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 0.8rem;
+                flex-wrap: wrap;
+              "
+            >
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  style="animation-delay: 0.3s; width: <%= pct %>"
+                ></div>
+              </div>
+              <span class="badge badge-flip"
+                ><%= skill.proficiency || 'Intermediate' %></span
+              >
+              <% if (skill.experienceInYears) { %>
+              <span style="font-size: 0.8rem; opacity: 0.7"
+                >(<%= skill.experienceInYears %> yr)</span
+              >
+              <% } %>
+            </div>
+          </div>
+          <% }) %> <% } else { %>
+          <div class="spec-item"><span>No skills added yet</span></div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ═══ PROJECTS ═══ -->
+      <div class="animate-in delay-5">
+        <h2 class="section-title">🚀 <span>Projects</span></h2>
+        <div class="card-grid">
+          <% if (profile?.projects?.length) { %> <%
+          profile.projects.forEach(function(proj) { %>
+          <div class="product-card">
+            <div class="card-title"><%= proj.name || 'Project' %></div>
+            <% if (proj.startDate || proj.endDate) { %>
+            <span class="badge">
+              <%= proj.startDate ? new
+              Date(proj.startDate).toLocaleDateString('en-US', { year:'numeric'
+              }) : '' %> <% if (proj.startDate && proj.endDate) { %> – <% } %>
+              <%= proj.endDate ? new
+              Date(proj.endDate).toLocaleDateString('en-US', { year:'numeric' })
+              : '' %>
+            </span>
+            <% } %> <% if (proj.description) { %>
+            <p class="card-desc"><%= proj.description %></p>
+            <% } %> <% if (proj.techStack && proj.techStack.length) { %>
+            <div class="card-desc">
+              <strong>Tech:</strong> <%= proj.techStack.join(', ') %>
+            </div>
+            <% } %> <% var link = proj.link; var isValidLink = link &&
+            link.trim() && link !== 'Not Provide' && link !== '#'; %> <% if
+            (isValidLink) { %>
+            <a
+              href="<%= link %>"
+              target="_blank"
+              class="btn btn-outline"
+              style="margin-top: 0.8rem; display: inline-flex"
+              >View Project →</a
+            >
+            <% } %>
+          </div>
+          <% }) %> <% } else { %>
+          <div class="product-card">
+            <div class="card-title">No projects added yet</div>
+            <div class="card-desc">Showcase your work from the dashboard.</div>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ═══ CERTIFICATES ═══ -->
+      <div class="animate-in delay-5">
+        <h2 class="section-title">📜 <span>Certificates</span></h2>
+        <div class="card-grid">
+          <% if (profile?.certificates?.length) { %> <%
+          profile.certificates.forEach(function(cert) { %>
+          <div class="product-card">
+            <div class="card-title">
+              <%= cert.certificateName || 'Certificate' %>
+            </div>
+            <div class="card-subtitle"><%= cert.issuedBy || '' %></div>
+            <% if (cert.issuedDate) { %><span class="badge"
+              >Issued: <%= new Date(cert.issuedDate).toLocaleDateString('en-US',
+              { year:'numeric', month:'short' }) %></span
+            ><% } %> <% if (cert.credentialId) { %>
+            <div class="card-desc">ID: <%= cert.credentialId %></div>
+            <% } %> <% if (cert.credentialUrl) { %>
+            <a
+              href="<%= cert.credentialUrl %>"
+              target="_blank"
+              class="btn btn-outline"
+              style="margin-top: 0.5rem; display: inline-flex"
+              >Verify →</a
+            >
+            <% } %>
+          </div>
+          <% }) %> <% } else { %>
+          <div class="product-card">
+            <div class="card-title">No certificates added yet</div>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ═══ ACHIEVEMENTS ═══ -->
+      <div class="animate-in delay-5">
+        <h2 class="section-title">🏆 <span>Achievements</span></h2>
+        <div class="reviews-grid">
+          <% if (profile?.achievements?.length) { %> <%
+          profile.achievements.forEach(function(ach) { %>
+          <div class="review-card">
+            <span class="review-icon">⭐</span>
+            <div><strong><%= ach.title || 'Achievement' %></strong></div>
+            <% if (ach.description) { %>
+            <div style="font-size: 0.9rem; opacity: 0.8">
+              <%= ach.description %>
+            </div>
+            <% } %> <% if (ach.achievementDate) { %>
+            <div
+              class="badge"
+              style="margin-top: 0.3rem; display: inline-block"
+            >
+              <%= new Date(ach.achievementDate).toLocaleDateString('en-US', {
+              year:'numeric' }) %>
+            </div>
+            <% } %>
+          </div>
+          <% }) %> <% } else { %>
+          <div class="review-card">
+            <span class="review-icon">⭐</span>
+            <div><strong>No achievements yet</strong></div>
+            <div style="font-size: 0.9rem; opacity: 0.8">
+              Add your milestones from the dashboard.
+            </div>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ═══ LANGUAGES ═══ -->
+      <div class="animate-in delay-5">
+        <h2 class="section-title">🌐 <span>Languages</span></h2>
+        <div class="specs-container">
+          <% if (profile?.languages?.length) { %> <%
+          profile.languages.forEach(function(lang) { %>
+          <div class="spec-item">
+            <span><%= lang.language || 'Language' %></span>
+            <span class="badge"><%= lang.proficiency || 'Fluent' %></span>
+          </div>
+          <% }) %> <% } else { %>
+          <div class="spec-item"><span>No languages added</span></div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- ═══ SOCIAL LINKS ═══ -->
+      <div class="animate-in delay-5">
+        <h2 class="section-title">🔗 <span>Connect</span></h2>
+        <div class="social-bar">
+          <% if (profile?.social?.linkedInUrl) { %><a
+            href="<%= profile.social.linkedInUrl %>"
+            target="_blank"
+            class="social-icon"
+            >🔗 LinkedIn</a
+          ><% } %> <% if (profile?.social?.gitHubUrl) { %><a
+            href="<%= profile.social.gitHubUrl %>"
+            target="_blank"
+            class="social-icon"
+            >💻 GitHub</a
+          ><% } %> <% if (profile?.social?.portfolioUrl) { %><a
+            href="<%= profile.social.portfolioUrl %>"
+            target="_blank"
+            class="social-icon"
+            >🌍 Portfolio</a
+          ><% } %> <% if (profile?.social?.websiteUrl) { %><a
+            href="<%= profile.social.websiteUrl %>"
+            target="_blank"
+            class="social-icon"
+            >🌐 Website</a
+          ><% } %>
+        </div>
+      </div>
+
+      <div class="footer">Made with ❤️ using <strong>Resume.dev</strong></div>
+    </div>
+
+    <!-- ═══ JavaScript for 3D Tilt Effect ═══ -->
+    <script>
+      (function () {
+        const hero = document.getElementById("heroCard");
+        if (hero) {
+          hero.addEventListener("mousemove", (e) => {
+            const rect = hero.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const rotateX = (y - centerY) / 20;
+            const rotateY = (centerX - x) / 20;
+            hero.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+          });
+          hero.addEventListener("mouseleave", () => {
+            hero.style.transform =
+              "perspective(800px) rotateX(0deg) rotateY(0deg)";
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>

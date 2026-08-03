@@ -1,4 +1,4 @@
-exports.appError = () => {
+exports.appError = (message, statusCode) => {
     const error = new Error(message);
     error.statusCode = statusCode;
     return error;

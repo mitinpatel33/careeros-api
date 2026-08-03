@@ -1,11 +1,10 @@
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-
-const User = require("../models/user.model");
-const asyncHandler = require("../utils/asyncHandler");
-const { successResponse, errorResponse } = require("../utils/apiResponse");
-const appError = require("../utils/appError");
-const { generateAccessToken, generateRefreshToken } = require("../utils/token");
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { generateAccessToken, generateRefreshToken } = require('../utils/token');
+const { User } = require('../models/user.model');
+const { asyncHandler } = require('../utils/asyncHandler');
+const { appError } = require('../utils/appError');
+const { successResponse } = require('../utils/apiResponse');
 
 const buildAuthResponse = (user, accessToken, refreshToken) => ({
   userId: user._id,
@@ -13,145 +12,136 @@ const buildAuthResponse = (user, accessToken, refreshToken) => ({
   email: user.email,
   role: user.role,
   token: accessToken,
-  refreshToken,
 });
 
-exports.signup = async (req, res) => {
-  try {
-    const { firstName, lastName, email, password, registrationType } = req.body;
+exports.signup = asyncHandler(async (req, res) => {
+  const { firstName, lastName, email, password, registrationType } = req.body;
 
-    if (!firstName || !lastName || !email || !password || !registrationType) {
-      throw appError("Required fields are missing", 400);
-    }
-
-    const existingUser = await User.findOne({
-      email: email.toLowerCase(),
-    }).lean();
-
-    if (existingUser) {
-      throw appError("Email already exists", 400);
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    const user = await User.create({
-      firstName,
-      lastName,
-      email,
-      passwordHash,
-      role: registrationType,
-      isActive: true,
-    });
-
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-
-    user.refreshToken = refreshToken;
-
-    return successResponse(
-      res,
-      "Signup successfully",
-      buildAuthResponse(user, accessToken, refreshToken),
-      201,
-    );
-  } catch (error) {
-    return errorResponse(res, error.message, 500);
+  if (!firstName || !lastName || !email || !password || !registrationType) {
+    throw appError('Required fields are missing.', 400);
   }
-};
 
-exports.login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const existingUser = await User.findOne({
+    email: email.toLowerCase(),
+  }).lean();
 
-    if (!email || !password) {
-      throw appError("Email and password are required", 400);
-    }
-
-    const user = await User.findOne({
-      email: email.toLowerCase(),
-    });
-
-    if (!user) {
-      throw appError("Invalid email or password", 401);
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-
-    if (!isPasswordValid) {
-      throw appError("Invalid email or password", 401);
-    }
-
-    if (!user.isActive) {
-      throw appError("User account is inactive", 400);
-    }
-
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-
-    user.refreshToken = refreshToken;
-    await user.save();
-
-    return successResponse(
-      res,
-      "Login successfully",
-      buildAuthResponse(user, accessToken, refreshToken),
-    );
-  } catch (error) {
-    return errorResponse(res, error.message);
+  if (existingUser) {
+    throw appError('Email already exists.', 400);
   }
-};
 
-exports.refreshToken = async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
+  const passwordHash = await bcrypt.hash(password, 10);
 
-    if (!refreshToken) {
-      throw appError("Refresh token is required", 400);
-    }
+  const user = await User.create({
+    firstName,
+    lastName,
+    email,
+    passwordHash,
+    role: registrationType,
+    isActive: true,
+  });
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
 
-    const user = await User.findById(decoded.userId);
+  user.refreshToken = refreshToken;
+  await user.save();
 
-    if (!user || user.refreshToken !== refreshToken) {
-      throw appError("Invalid refresh token", 401);
-    }
+  return successResponse(
+    res,
+    'Signup successfully.',
+    buildAuthResponse(user, accessToken, refreshToken),
+    201,
+  );
+});
 
-    const accessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
+exports.login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-    user.refreshToken = newRefreshToken;
-    await user.save();
-
-    return successResponse(
-      res,
-      "Token refreshed successfully",
-      buildAuthResponse(user, accessToken, newRefreshToken),
-    );
-  } catch (error) {
-    return errorResponse(res, error.message);
+  if (!email || !password) {
+    throw appError('Email and password are required.', 400);
   }
-};
 
-exports.logout = async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
+  const user = await User.findOne({
+    email: email.toLowerCase(),
+  });
 
-    if (!refreshToken) {
-      throw appError("Refresh token is required.", 400);
-    }
-
-      await User.updateOne(
-        { refreshToken },
-        {
-          $set: {
-            refreshToken: null,
-          },
-        }
-      );
-
-    return successResponse(res, "Logout successfully.", null);
-  } catch (error) {
-    return errorResponse(res, error.message);
+  if (!user) {
+    throw appError('Invalid email or password.', 401);
   }
-};
+
+  const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+
+  if (!isPasswordValid) {
+    throw appError('Invalid email or password.', 401);
+  }
+
+  if (!user.isActive) {
+    throw appError('User account is inactive.', 400);
+  }
+
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,
+    secure: false,
+    sameSite: 'strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  user.refreshToken = refreshToken;
+  await user.save();
+
+  return successResponse(
+    res,
+    'Login successfully.',
+    buildAuthResponse(user, accessToken, refreshToken),
+  );
+});
+
+exports.refreshToken = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    throw appError('Refresh token is required.', 400);
+  }
+
+  const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+  const user = await User.findById(decoded.userId);
+
+  if (!user || user.refreshToken !== refreshToken) {
+    throw appError('Invalid refresh token.', 401);
+  }
+
+  const accessToken = generateAccessToken(user);
+  const newRefreshToken = generateRefreshToken(user);
+
+  user.refreshToken = newRefreshToken;
+  await user.save();
+
+  return successResponse(
+    res,
+    'Token refreshed successfully.',
+    buildAuthResponse(user, accessToken, newRefreshToken),
+  );
+});
+
+exports.logout = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    throw appError('Refresh token is required.', 400);
+  }
+
+  await User.updateOne(
+    { refreshToken },
+    {
+      $set: {
+        refreshToken: null,
+      },
+    },
+  );
+
+  return successResponse(res, 'Logout successfully.', null);
+});

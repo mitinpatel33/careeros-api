@@ -1,36 +1,107 @@
 const express = require('express');
+
+const { protect, authorize } = require('../middlewares/auth.middleware');
+
 const { ROLES } = require('../constants/roles');
-const { authorize, protect } = require('../middlewares/auth.middleware');
-const { getCompletion, publishProfile, getSingleSection, saveSingleSection, deleteSingleSection, getCollection, getCollectionById, saveCollection, deleteCollection } = require('../controllers/candidateProfile.controller');
+
+const {
+  getCompletion,
+  publishProfile,
+
+  getSingleSection,
+  saveSingleSection,
+  deleteSingleSection,
+
+  getCollection,
+  getCollectionById,
+  saveCollection,
+  deleteCollection,
+  checkSlug,
+  getProfileSections,
+} = require('../controllers/candidateProfile.controller');
+
+const { personalInfo } = require('../validations/candidateProfile.validation');
+
+// const validateRequest = require('../middlewares/validate.middleware');
 
 const router = express.Router();
 
+// Authentication Middleware
 router.use(protect);
+
+// Role Middleware
 router.use(authorize(ROLES.CANDIDATE));
 
-router.get('/completion', getCompletion);
-router.post('/publish', publishProfile);
+// ===============================
+// Profile Common APIs
+// ===============================
 
-['personal', 'summary', 'contact', 'social', 'settings'].forEach((section) => {
-    router.get(`/${section}`, getSingleSection(section));
-    router.post(`/${section}`, saveSingleSection(section));
-    router.delete(`${section}`, deleteSingleSection(section));
+router.get('/completion', getCompletion);
+
+// router.post('/publish', publishProfile);
+
+// ===============================
+// Single Object Sections
+// ===============================
+
+const singleSections = ['personal', 'summary', 'contact', 'social', 'settings'];
+
+singleSections.forEach((section) => {
+  // Get Section
+  router.get(`/${section}`, getSingleSection(section));
+
+  // Create / Update Section
+  router.post(
+    `/${section}`,
+    // validateRequest(personalInfo),
+    saveSingleSection(section),
+  );
+
+  // Support PUT also
+  router.put(
+    `/${section}`,
+    // validateRequest(personalInfo),
+    saveSingleSection(section),
+  );
+
+  // Delete Section
+  router.delete(`/${section}`, deleteSingleSection(section));
 });
 
-[
-    "skills",
-    "educations",
-    "experience",
-    "projects",
-    "certificates",
-    "achievemnets",
-    "languages"
-].forEach((section) => {
-    router.get(`/${section}`, getCollection(section));
-    router.get(`/${section}/:id`, getCollectionById(section));
-    router.post(`/${section}`, saveCollection(section));
-    router.put(`/${section}/:id`, saveCollection(section));
-    router.delete(`/${section}/:id`, deleteCollection(section));
-})
+// ===============================
+// Collection Sections
+// ===============================
+
+const collectionSections = [
+  'skills',
+  'educations',
+  'experiences',
+  'projects',
+  'certificates',
+  'achievements',
+  'languages',
+];
+
+collectionSections.forEach((section) => {
+  // Get All
+  router.get(`/${section}`, getCollection(section));
+
+  // Get By Id
+  router.get(`/${section}/:id`, getCollectionById(section));
+
+  // Create
+  router.post(`/${section}`, saveCollection(section));
+
+  // Update
+  router.put(`/${section}/:id`, saveCollection(section));
+
+  // Delete
+  router.delete(`/${section}/:id`, deleteCollection(section));
+});
+
+router.get('/check-slug', checkSlug);
+router.post('/publish', protect, publishProfile);
+
+router.get('/sections', getProfileSections);
 
 module.exports = router;

@@ -14,6 +14,8 @@ exports.protect = asyncHandler(async (req, res, next) => {
 
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+  req.user = { id: decoded.userId };
+
   const user = await User.findById(decoded.userId);
 
   // const user = await User.findById(decoded.userId).select('-passwordHash');

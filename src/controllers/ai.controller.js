@@ -1,110 +1,159 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const Joi = require("joi");
+const {
+  ProfilePersonalInfo,
+  ProfileSkill,
+  ProfileExperience,
+} = require("../models/candidate-profile.model");
+const { successResponse, errorResponse } = require("../utils/apiResponse");
+const { generateContent } = require("../services/gemini.service");
+const logger = require("../utils/logger");
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+// --- Validation schemas ---
+const suggestSkillsSchema = Joi.object({
+  jobTitle: Joi.string().trim().default("Software Developer"),
+});
 
-// Helper to extract JSON from text (Gemini may wrap in markdown)
-const extractJSON = (text) => {
-  try {
-    const jsonMatch = text.match(/\{.*\}/s) || text.match(/\[.*\]/s);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    return null;
-  } catch {
-    return null;
-  }
+const enhanceDescriptionSchema = Joi.object({
+  text: Joi.string().min(1).required(),
+});
+
+const suggestSocialSchema = Joi.object({
+  jobTitle: Joi.string().trim().default("Software Developer"),
+});
+
+const suggestCertificateSchema = Joi.object({
+  jobTitle: Joi.string().trim().default("Software Developer"),
+  skills: Joi.array().items(Joi.string()),
+});
+
+const PROMPTS = {
+  SUMMARY: (jobTitle, skillList, expYears) =>
+    `You are a career coach. Based on the following details:
+Job Title: ${jobTitle || "Software Developer"}
+Skills: ${skillList || "Software Engineering"}
+Years of Experience: ${expYears}
+
+Write a concise professional summary (3-4 sentences) and a career objective (2-3 sentences).
+Do not include markdown code block formatting. Return valid JSON strictly matching this schema:
+{
+  "professionalSummary": "string",
+  "careerObjective": "string"
+}`,
+
+  SKILLS: (jobTitle) =>
+    `List top 10 technical skills for a ${jobTitle || "Software Developer"}.
+Return a valid JSON array of strings containing only the skill names.
+Example: ["React", "Node.js", "Python"]`,
+
+  ENHANCE: (text) =>
+    `Improve the following description for a resume bullet point.
+Make it more impactful, professional, and quantifiable if possible.
+Return only the improved text, no extra commentary or quotes.
+Input: '${text}'`,
+
+  SOCIAL: (jobTitle) =>
+    `For a ${jobTitle || "Software Developer"}, suggest typical professional social/profile URLs.
+Return valid JSON with keys: linkedInUrl, gitHubUrl, portfolioUrl, websiteUrl, twitterUrl, stackOverflowUrl, leetCodeUrl.
+If a platform is not relevant, set its value to an empty string.`,
+
+  CERTIFICATES: (jobTitle, skillList) =>
+    `For a ${jobTitle || "Software Developer"} with skills in ${skillList || ""},
+suggest 5 relevant professional certifications.
+Return a valid JSON array of objects with keys: certificateName, issuedBy.`,
 };
-
+// --- Controllers ---
 exports.generateSummary = async (req, res) => {
-  const { jobTitle, skills, experience } = req.body;
-  const skillList = skills?.map((s) => s.skillName).join(", ") || "";
-  const expYears = experience?.length || 0;
+  try {
+    const userId = req.user._id;
+    const [personalInfo, skillsInfo, experienceInfo] = await Promise.all([
+      ProfilePersonalInfo.findOne({ userId }).lean(),
+      ProfileSkill.find({ userId }).lean(),
+      ProfileExperience.find({ userId }).lean(),
+    ]);
 
-  const prompt = `
-      You are a career coach. Based on the following details:
-      Job Title: ${jobTitle || "Software Developer"}
-      Skills: ${skillList}
-      Years of Experience: ${expYears}
+    const skillList = skillsInfo?.map((s) => s.skillName).join(", ") || "";
+    const expYears = experienceInfo?.length || 0;
 
-      Write a concise professional summary (3‑4 sentences) and a career objective (2‑3 sentences).
-      Return the result in the following JSON format:
-      {
-        'professionalSummary': '...',
-        'careerObjective': '...'
-      }
-    `;
+    const prompt = PROMPTS.SUMMARY(personalInfo?.jobTitle, skillList, expYears);
 
-  const result = await model.generateContent(prompt);
-  const text = await result.response.text();
-  const parsed = extractJSON(text);
-
-  //parse the json from the response (Gemini may wrap in markdown)
-  if (parsed && parsed.professionalSummary) {
-    res.json(parsed);
-  } else {
-    // fallback: return raw text as summary
-    res.json({ professionalSummary: text.trim(), careerObjective: "" });
+    const parsed = await generateContent(prompt, {}, true);
+    if (parsed.professionalSummary) {
+      return successResponse(res, "Summary fetched successfully.", parsed);
+    }
+    // fallback: return raw text
+    return successResponse(res, "Summary fetched (raw).", {
+      professionalSummary: parsed.professionalSummary || "",
+      careerObjective: "",
+    });
+  } catch (error) {
+    logger.error("generateSummary error:", error);
+    return errorResponse(res, "Failed to generate summary", error.message);
   }
 };
 
 exports.suggestSkills = async (req, res) => {
-  const { jobTitle } = req.body;
-  const prompt = `
-      List top 10 technical skills for a ${jobTitle || "Software Developer"}.
-      Return as a JSON array of strings, e.g. ['React', 'Node.js', 'Python'].
-      Only return the JSON array, no extra text.
-    `;
-  const result = await model.generateContent(prompt);
-  const text = await result.response.text();
-  const parsed = extractJSON(text);
-  if (Array.isArray(parsed)) {
-    res.json(parsed);
-  } else {
-    // fallback: split by commas
-    const skills = text
+  try {
+    const { error, value } = suggestSkillsSchema.validate(req.body);
+    if (error)
+      return errorResponse(res, "Validation error", error.details[0].message);
+
+    const { jobTitle } = value;
+    const prompt = PROMPTS.SKILLS(jobTitle);
+    const parsed = await generateContent(prompt, { jobTitle }, true);
+
+    if (Array.isArray(parsed)) {
+      return successResponse(res, "Skills suggested successfully.", parsed);
+    }
+    // fallback: split by comma
+    const skills = (parsed.raw || "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    res.json(skills);
+    return successResponse(res, "Skills suggested (fallback).", skills);
+  } catch (error) {
+    logger.error("suggestSkills error:", error);
+    return errorResponse(res, "Failed to suggest skills", error.message);
   }
 };
 
 exports.enhanceDescription = async (req, res) => {
-  const { text } = req.body;
-  if (!text) {
-    return res.status(400).json({ error: "Description text is required" });
+  try {
+    const { error, value } = enhanceDescriptionSchema.validate(req.body);
+    if (error)
+      return errorResponse(res, "Validation error", error.details[0].message);
+
+    const { text } = value;
+    const prompt = PROMPTS.ENHANCE(text);
+    const result = await generateContent(prompt, {}, false); // no JSON parsing
+    const enhanced = result.raw || result;
+    return successResponse(res, "Description enhanced successfully.", {
+      enhanced: enhanced.trim(),
+    });
+  } catch (error) {
+    logger.error("enhanceDescription error:", error);
+    return errorResponse(res, "Failed to enhance description", error.message);
   }
-
-  const prompt = `
-      Improve the following description for a resume bullet point.
-      Make it more impactful, professional, and quantifiable if possible.
-      Return only the improved text, no extra commentary.
-      Input: '${text}'
-    `;
-
-  const result = await model.generateContent(prompt);
-  const enhanced = await result.response.text();
-  res.json({ enhanced: enhanced.trim() });
 };
 
 exports.suggestSocial = async (req, res) => {
-  const { jobTitle } = req.body;
-  const prompt = `
-      For a ${jobTitle || "Software Developer"}, suggest typical professional social/profile URLs.
-      Return as JSON with keys: linkedInUrl, gitHubUrl, portfolioUrl, websiteUrl, twitterUrl, stackOverflowUrl, leetCodeUrl.
-      If a platform is not relevant, leave it empty string.
-      Example: { 'linkedInUrl': 'https://linkedin.com/in/username', ... }
-    `;
+  try {
+    const { error, value } = suggestSocialSchema.validate(req.body);
+    if (error)
+      return errorResponse(res, "Validation error", error.details[0].message);
 
-  const result = await model.generateContent(prompt);
-  const text = await result.response.text();
-  const parsed = extractJSON(text);
+    const { jobTitle } = value;
+    const prompt = PROMPTS.SOCIAL(jobTitle);
+    const parsed = await generateContent(prompt, { jobTitle }, true);
 
-  if (parsed && typeof parsed === "object") {
-    res.json(parsed);
-  } else {
-    // fallback with empty values
-    res.json({
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return successResponse(
+        res,
+        "Social URLs suggested successfully.",
+        parsed,
+      );
+    }
+    // fallback: empty object
+    return successResponse(res, "Social URLs suggested (fallback).", {
       linkedInUrl: "",
       gitHubUrl: "",
       portfolioUrl: "",
@@ -113,27 +162,33 @@ exports.suggestSocial = async (req, res) => {
       stackOverflowUrl: "",
       leetCodeUrl: "",
     });
+  } catch (error) {
+    logger.error("suggestSocial error:", error);
+    return errorResponse(res, "Failed to suggest social URLs", error.message);
   }
 };
 
 exports.suggestCertificate = async (req, res) => {
-  const { jobTitle, skills } = req.body;
-  const skillList = skills?.map((s) => s.skillName).join(", ") || "";
+  try {
+    const { error, value } = suggestCertificateSchema.validate(req.body);
+    if (error)
+      return errorResponse(res, "Validation error", error.details[0].message);
 
-  const prompt = `
-      For a ${jobTitle || "Software Developer"} with skills in ${skillList},
-      suggest 5 relevant professional certifications (e.g., AWS Certified, Scrum Master, etc.).
-      Return as a JSON array of objects with fields: certificateName, issuedBy.
-      Example: [{'certificateName': 'AWS Certified Developer', 'issuedBy': 'Amazon'}]
-    `;
+    const { jobTitle, skills = [] } = value;
+    const skillList = skills.join(", ");
+    const prompt = PROMPTS.CERTIFICATES(jobTitle, skillList);
+    const parsed = await generateContent(prompt, { jobTitle, skillList }, true);
 
-  const result = await model.generateContent(prompt);
-  const text = await result.response.text();
-  const parsed = extractJSON(text);
-
-  if (Array.isArray(parsed)) {
-    res.json(parsed);
-  } else {
-    res.json([]);
+    if (Array.isArray(parsed)) {
+      return successResponse(
+        res,
+        "Certificates suggested successfully.",
+        parsed,
+      );
+    }
+    return successResponse(res, "Certificates suggested (fallback).", []);
+  } catch (error) {
+    logger.error("suggestCertificate error:", error);
+    return errorResponse(res, "Failed to suggest certificates", error.message);
   }
 };

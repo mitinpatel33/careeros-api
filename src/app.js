@@ -9,10 +9,11 @@ const path = require("path");
 const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
 const publicRoutes = require("./routes/public-resume.routes");
+const companyRoutes = require("./routes/company-profile.routes");
 const aiRoutes = require("./routes/ai.routes");
 const { errorHandler, notFound } = require("./middlewares/error.middleware");
 const swaggerUi = require('swagger-ui-express');
-const swaggerDocument = require('../swagger-output.json'); 
+const swaggerDocument = require('../swagger-output.json');
 const { success } = require("zod");
 const ejs = require('ejs');
 
@@ -40,7 +41,14 @@ app.use(
   }),
 );
 
-app.use(helmet());
+app.use(helmet()); // global default (same-origin) for API routes
+
+app.use("/uploads", express.static(path.join(__dirname, "..", "uploads"), {
+  setHeaders: (res) => {
+    res.set("Cross-Origin-Resource-Policy", "cross-origin");
+  },
+}));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -65,8 +73,10 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/candidate/profile", profileRoutes);
+app.use("/api/company-profile", companyRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/", publicRoutes);
+
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 

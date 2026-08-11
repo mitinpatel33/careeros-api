@@ -11,12 +11,13 @@ const profileRoutes = require("./routes/profile.routes");
 const publicRoutes = require("./routes/public-resume.routes");
 const aiRoutes = require("./routes/ai.routes");
 const { errorHandler, notFound } = require("./middlewares/error.middleware");
-const swaggerUi = require('swagger-ui-express');
-const swaggerDocument = require('../swagger-output.json'); 
+const { setupSwagger } = require("../swagger");
 const { success } = require("zod");
 const ejs = require('ejs');
 
 const app = express();
+
+setupSwagger(app);
 
 // view engine setup
 app.engine("html", ejs.renderFile); // tell Express to use EJS for .html files
@@ -67,8 +68,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/candidate/profile", profileRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/", publicRoutes);
-
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use(notFound);
 app.use(errorHandler);

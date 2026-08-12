@@ -10,6 +10,7 @@ const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
 const publicRoutes = require("./routes/public-resume.routes");
 const companyRoutes = require("./routes/company-profile.routes");
+const companyJobRoutes = require("./routes/company-job.routes");
 const aiRoutes = require("./routes/ai.routes");
 const { errorHandler, notFound } = require("./middlewares/error.middleware");
 const swaggerUi = require('swagger-ui-express');
@@ -73,7 +74,8 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/candidate/profile", profileRoutes);
-app.use("/api/company-profile", companyRoutes);
+app.use("/api/company/profile", companyRoutes);
+app.use("/api/company/jobs", companyJobRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/", publicRoutes);
 

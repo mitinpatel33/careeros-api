@@ -30,7 +30,7 @@ exports.getCompanyJobs = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 10;
   const skip = (page - 1) * limit;
 
-  const { status, search, department, sortBy = "createdAt", sortOrder = "desc" } = req.query;
+  const { status, search, department, workplaceType, sortBy = "createdAt", sortOrder = "desc" } = req.query;
 
   const query = { userId };
 
@@ -38,8 +38,8 @@ exports.getCompanyJobs = asyncHandler(async (req, res) => {
     query.status = status;
   }
 
-  if (department) {
-    query.department = { $regex: department, $options: "i" };
+  if (workplaceType) {
+    query.workplaceType = workplaceType;
   }
 
   if (search) {

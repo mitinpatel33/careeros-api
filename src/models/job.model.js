@@ -42,7 +42,6 @@ const jobSchema = new mongoose.Schema(
     experience: {
       type: String,
       trim: true,
-      default: "Mid Level",
     },
     location: {
       type: String,

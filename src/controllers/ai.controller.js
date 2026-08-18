@@ -61,6 +61,7 @@ If a platform is not relevant, set its value to an empty string.`,
 suggest 5 relevant professional certifications.
 Return a valid JSON array of objects with keys: certificateName, issuedBy.`,
 };
+
 // --- Controllers ---
 exports.generateSummary = async (req, res) => {
   try {
@@ -77,25 +78,29 @@ exports.generateSummary = async (req, res) => {
     const prompt = PROMPTS.SUMMARY(personalInfo?.jobTitle, skillList, expYears);
 
     const parsed = await generateContent(prompt, {}, true);
-    if (parsed.professionalSummary) {
+    if (parsed && parsed.professionalSummary) {
       return successResponse(res, "Summary fetched successfully.", parsed);
     }
-    // fallback: return raw text
+
     return successResponse(res, "Summary fetched (raw).", {
-      professionalSummary: parsed.professionalSummary || "",
+      professionalSummary:
+        typeof parsed === "string" ? parsed : parsed?.raw || "",
       careerObjective: "",
     });
   } catch (error) {
     logger.error("generateSummary error:", error);
-    return errorResponse(res, "Failed to generate summary", error.message);
+    return errorResponse(
+      res,
+      error.message || "Failed to generate summary",
+      500,
+    );
   }
 };
 
 exports.suggestSkills = async (req, res) => {
   try {
     const { error, value } = suggestSkillsSchema.validate(req.body);
-    if (error)
-      return errorResponse(res, "Validation error", error.details[0].message);
+    if (error) return errorResponse(res, error.details[0].message, 400);
 
     const { jobTitle } = value;
     const prompt = PROMPTS.SKILLS(jobTitle);
@@ -104,42 +109,45 @@ exports.suggestSkills = async (req, res) => {
     if (Array.isArray(parsed)) {
       return successResponse(res, "Skills suggested successfully.", parsed);
     }
-    // fallback: split by comma
-    const skills = (parsed.raw || "")
+
+    const skills = (parsed?.raw || "")
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
     return successResponse(res, "Skills suggested (fallback).", skills);
   } catch (error) {
     logger.error("suggestSkills error:", error);
-    return errorResponse(res, "Failed to suggest skills", error.message);
+    return errorResponse(res, error.message || "Failed to suggest skills", 500);
   }
 };
 
 exports.enhanceDescription = async (req, res) => {
   try {
     const { error, value } = enhanceDescriptionSchema.validate(req.body);
-    if (error)
-      return errorResponse(res, "Validation error", error.details[0].message);
+    if (error) return errorResponse(res, error.details[0].message, 400);
 
     const { text } = value;
     const prompt = PROMPTS.ENHANCE(text);
-    const result = await generateContent(prompt, {}, false); // no JSON parsing
-    const enhanced = result.raw || result;
+    const result = await generateContent(prompt, {}, false);
+    const enhanced = typeof result === "string" ? result : result?.raw || text;
+
     return successResponse(res, "Description enhanced successfully.", {
       enhanced: enhanced.trim(),
     });
   } catch (error) {
     logger.error("enhanceDescription error:", error);
-    return errorResponse(res, "Failed to enhance description", error.message);
+    return errorResponse(
+      res,
+      error.message || "Failed to enhance description",
+      500,
+    );
   }
 };
 
 exports.suggestSocial = async (req, res) => {
   try {
     const { error, value } = suggestSocialSchema.validate(req.body);
-    if (error)
-      return errorResponse(res, "Validation error", error.details[0].message);
+    if (error) return errorResponse(res, error.details[0].message, 400);
 
     const { jobTitle } = value;
     const prompt = PROMPTS.SOCIAL(jobTitle);
@@ -152,7 +160,7 @@ exports.suggestSocial = async (req, res) => {
         parsed,
       );
     }
-    // fallback: empty object
+
     return successResponse(res, "Social URLs suggested (fallback).", {
       linkedInUrl: "",
       gitHubUrl: "",
@@ -164,15 +172,18 @@ exports.suggestSocial = async (req, res) => {
     });
   } catch (error) {
     logger.error("suggestSocial error:", error);
-    return errorResponse(res, "Failed to suggest social URLs", error.message);
+    return errorResponse(
+      res,
+      error.message || "Failed to suggest social URLs",
+      500,
+    );
   }
 };
 
 exports.suggestCertificate = async (req, res) => {
   try {
     const { error, value } = suggestCertificateSchema.validate(req.body);
-    if (error)
-      return errorResponse(res, "Validation error", error.details[0].message);
+    if (error) return errorResponse(res, error.details[0].message, 400);
 
     const { jobTitle, skills = [] } = value;
     const skillList = skills.join(", ");
@@ -189,6 +200,10 @@ exports.suggestCertificate = async (req, res) => {
     return successResponse(res, "Certificates suggested (fallback).", []);
   } catch (error) {
     logger.error("suggestCertificate error:", error);
-    return errorResponse(res, "Failed to suggest certificates", error.message);
+    return errorResponse(
+      res,
+      error.message || "Failed to suggest certificates",
+      500,
+    );
   }
 };

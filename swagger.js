@@ -15,12 +15,12 @@ const swaggerDefinition = {
 
   servers: [
     {
-      url: "http://localhost:5000",
-      description: "Local Development",
+      url: "https://careeros-api-22tq.vercel.app",
+      description: "Vercel Production",
     },
     {
-      url: "https://api.example.com",
-      description: "Production",
+      url: "http://localhost:5000",
+      description: "Local Development",
     },
   ],
 
@@ -579,23 +579,28 @@ const setupSwagger = (app) => {
     swaggerUi.serve,
     swaggerUi.setup(swaggerSpec, {
       explorer: true,
-
       customSiteTitle: "Career OS API Documentation",
-
+      // CDN URLs prevent missing static file errors on Vercel
+      customCssUrl:
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.8/swagger-ui.min.css",
+      customJs: [
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.8/swagger-ui-bundle.min.js",
+        "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.8/swagger-ui-standalone-preset.min.js",
+      ],
       swaggerOptions: {
         persistAuthorization: true,
       },
-    }),
+    })
   );
 
   // Raw OpenAPI JSON
   app.get("/api-docs.json", (req, res) => {
-    res.json(swaggerSpec);
+    res.setHeader("Content-Type", "application/json");
+    res.send(swaggerSpec);
   });
 
-  console.log("📚 Swagger UI: http://localhost:5000/api-docs");
-
-  console.log("📄 Swagger JSON: http://localhost:5000/api-docs.json");
+  console.log("📚 Swagger UI: /api-docs");
+  console.log("📄 Swagger JSON: /api-docs.json");
 };
 
 // =====================================================

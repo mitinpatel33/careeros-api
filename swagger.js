@@ -580,27 +580,23 @@ const setupSwagger = (app) => {
     swaggerUi.setup(swaggerSpec, {
       explorer: true,
       customSiteTitle: "Career OS API Documentation",
-      // CDN URLs prevent missing static file errors on Vercel
       customCssUrl:
         "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.8/swagger-ui.min.css",
       customJs: [
         "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.8/swagger-ui-bundle.min.js",
         "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.8/swagger-ui-standalone-preset.min.js",
       ],
+      customCss: ".swagger-ui .topbar { display: none }", // Hides top header bar
       swaggerOptions: {
         persistAuthorization: true,
       },
-    })
+    }),
   );
 
-  // Raw OpenAPI JSON
   app.get("/api-docs.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send(swaggerSpec);
   });
-
-  console.log("📚 Swagger UI: /api-docs");
-  console.log("📄 Swagger JSON: /api-docs.json");
 };
 
 // =====================================================

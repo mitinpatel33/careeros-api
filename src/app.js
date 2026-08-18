@@ -13,7 +13,7 @@ const aiRoutes = require("./routes/ai.routes");
 const { errorHandler, notFound } = require("./middlewares/error.middleware");
 const { setupSwagger } = require("../swagger");
 const { success } = require("zod");
-const ejs = require('ejs');
+const ejs = require("ejs");
 
 const app = express();
 
@@ -24,21 +24,24 @@ app.engine("html", ejs.renderFile); // tell Express to use EJS for .html files
 app.set("view engine", "html"); // keep your existing engine setting
 app.set("views", path.join(__dirname, "views"));
 
-const allowedOrigins = "http://localhost:5173";
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://careeros-ui.vercel.app", // Replace with your frontend Vercel URL
+];
 
 app.use(
   cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true);
-
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-
+      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
       return callback(new Error("CORS Not Allowed"));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  }),
+  })
 );
 
 app.use(helmet());

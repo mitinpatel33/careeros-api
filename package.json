@@ -7,6 +7,7 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "swagger": "node swagger.js",
+    "build": "npm run swagger && tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

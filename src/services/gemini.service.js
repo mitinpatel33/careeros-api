@@ -1,18 +1,18 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 const NodeCache = require("node-cache");
 
 // --- Configuration ---
-const API_KEY = 'AQ.Ab8RN6LbW75NQrhARsW5zywmousVGOs9S3VxH0L95vS_SMP3wQ';
-if (!API_KEY) throw new Error("GEMINI_API_KEY is missing");
+const API_KEY = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6Lp8jN1lw0obnekUMFyGZpoaJNYKg9e3q4SSVvWdBO4Dw';
+if (!API_KEY) throw new Error("GEMINI_API_KEY is missing from environment variables");
 
-const MODEL_NAME = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+// Clean model string (trims accidental inline comments or spaces)
+const MODEL_NAME = (process.env.GEMINI_MODEL || "gemini-3.5-flash").split(" ")[0].trim();
 const CACHE_TTL = parseInt(process.env.CACHE_TTL_SECONDS, 10) || 3600;
 const MAX_RETRIES = parseInt(process.env.MAX_RETRIES, 10) || 2;
 const RETRY_DELAY = parseInt(process.env.RETRY_DELAY_MS, 10) || 1000;
 
-// --- Initialize clients ---
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+// --- Initialize Client ---
+const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 // --- Cache instance ---
 const cache = new NodeCache({
@@ -20,23 +20,34 @@ const cache = new NodeCache({
   checkperiod: 120,
 });
 
-// --- Helper: cache key ---
 function _cacheKey(prompt, params = {}) {
   return `${prompt.trim()}:${JSON.stringify(params)}`;
 }
 
-// --- Helper: extract JSON from text (handles markdown) ---
 function _extractJSON(text) {
   try {
-    const jsonMatch = text.match(/\{.*\}/s) || text.match(/\[.*\]/s);
-    if (jsonMatch) return JSON.parse(jsonMatch[0]);
-    return null;
+    return JSON.parse(text);
   } catch {
-    return null;
+    try {
+      const cleanedText = text
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+      return JSON.parse(cleanedText);
+    } catch {
+      const jsonMatch = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          return JSON.parse(jsonMatch[0]);
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
   }
 }
 
-// --- Core function with caching & retries ---
 async function generateContent(prompt, params = {}, parseJson = true) {
   const cacheKey = _cacheKey(prompt, params);
   const cached = cache.get(cacheKey);
@@ -45,28 +56,29 @@ async function generateContent(prompt, params = {}, parseJson = true) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
     try {
-      const generationConfig = {
+      const config = {
         temperature: 0.2,
-        maxOutputTokens: 2048, // Increased to prevent truncation on long outputs
+        maxOutputTokens: 2048,
       };
 
-      // Force Gemini to respond strictly in JSON format if requested
       if (parseJson) {
-        generationConfig.responseMimeType = "application/json";
+        config.responseMimeType = "application/json";
       }
 
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig,
+      // Modern API Call using @google/genai
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: config,
       });
 
-      const text = await result.response.text();
+      const text = response.text;
 
       let parsed = text;
       if (parseJson) {
         parsed = _extractJSON(text);
         if (!parsed) {
-          parsed = { raw: text.trim() }; // fallback
+          parsed = { raw: text ? text.trim() : "" };
         }
       }
 
@@ -81,38 +93,12 @@ async function generateContent(prompt, params = {}, parseJson = true) {
       }
     }
   }
-  throw new Error(
-    `AI service failed after ${MAX_RETRIES + 1} attempts: ${lastError.message}`,
+
+  const customError = new Error(
+    `AI service failed after ${MAX_RETRIES + 1} attempts: ${lastError?.message || "Unknown error"}`
   );
+  customError.statusCode = 500;
+  throw customError;
 }
 
-// --- Robust JSON Cleaner ---
-function _extractJSON(text) {
-  try {
-    // 1. Direct parse attempt
-    return JSON.parse(text);
-  } catch {
-    try {
-      // 2. Strip markdown triple backticks (e.g. ```json ... ```)
-      const cleanedText = text
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      return JSON.parse(cleanedText);
-    } catch {
-      // 3. Regex fallback to isolate JSON arrays or objects non-greedily
-      const jsonMatch = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-      if (jsonMatch) {
-        try {
-          return JSON.parse(jsonMatch[0]);
-        } catch {
-          return null;
-        }
-      }
-      return null;
-    }
-  }
-}
-
-// --- Expose only the main function ---
 module.exports = { generateContent };

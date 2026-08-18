@@ -344,10 +344,16 @@ exports.publishProfile = asyncHandler(async (req, res) => {
 
 exports.getProfileSections = asyncHandler(async (req, res) => {
   const { include } = req.query;
-  if (!include) return successResponse(res, "No sections requested.", {});
-
-  const requested = include.split(",").map((s) => s.trim());
   const userId = req.user._id;
+
+  // If no `include` param is given, fetch ALL known sections instead of
+  // requiring the caller to list them out.
+  const requested = include
+    ? include.split(",").map((s) => s.trim())
+    : [
+        ...Object.keys(singleSectionModels),
+        ...Object.keys(collectionSectionModels),
+      ];
 
   // fetch single and collection sections in parallel
   const results = await Promise.all([

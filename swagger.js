@@ -580,7 +580,7 @@ const setupSwagger = (app) => {
     swaggerUi.setup(swaggerSpec, {
       explorer: true,
       customSiteTitle: "Career OS API Documentation",
-      // CDN URLs to fix Vercel static asset routing issue
+      // CDN URLs prevent missing static file errors on Vercel
       customCssUrl:
         "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.11.8/swagger-ui.min.css",
       customJs: [
@@ -590,7 +590,7 @@ const setupSwagger = (app) => {
       swaggerOptions: {
         persistAuthorization: true,
       },
-    }),
+    })
   );
 
   // Raw OpenAPI JSON

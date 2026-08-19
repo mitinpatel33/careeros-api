@@ -1,4 +1,3 @@
-// src/app.js
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -8,6 +7,7 @@ const rateLimit = require("express-rate-limit");
 const path = require("path");
 const ejs = require("ejs");
 
+const connectDB = require("./config/db"); // Imported DB manager
 const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
 const publicRoutes = require("./routes/public-resume.routes");
@@ -18,20 +18,34 @@ const httpLogger = require("./middlewares/httpLogger.middleware");
 
 const app = express();
 
-// Trust reverse proxy (Required for Vercel rate-limiter and IP tracking)
+// Enable proxy trust for Vercel/reverse proxies
 app.set("trust proxy", 1);
 
-// Configure CORS to accept local and production Swagger requests
+// Ensure MongoDB is connected BEFORE handling any API request
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Configure CORS for dynamic environments (Local + Vercel Preview/Prod)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5000",
+  "http://127.0.0.1:5173",
+  process.env.CLIENT_URL,
+];
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or same-origin Swagger requests)
       if (!origin) return callback(null, true);
       
-      // Dynamic origin acceptance for Vercel previews and localhost
       if (
-        origin.includes("localhost") ||
-        origin.includes("127.0.0.1") ||
+        allowedOrigins.includes(origin) ||
         origin.endsWith(".vercel.app")
       ) {
         return callback(null, true);
@@ -44,7 +58,7 @@ app.use(
   })
 );
 
-// Disable CSP restriction for inline Swagger styles
+// Configure Helmet without blocking Swagger UI assets
 app.use(
   helmet({
     contentSecurityPolicy: false,
@@ -56,7 +70,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Request logging middleware
+// Logging middleware
 app.use(httpLogger);
 
 if (process.env.NODE_ENV === "development") {
@@ -71,7 +85,12 @@ app.use(
   })
 );
 
-// Attach Swagger Docs
+// View engine setup
+app.engine("html", ejs.renderFile);
+app.set("view engine", "html");
+app.set("views", path.join(__dirname, "views"));
+
+// Attach Swagger Documentation
 setupSwagger(app);
 
 // Application Routes

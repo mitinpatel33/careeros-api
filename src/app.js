@@ -1,3 +1,4 @@
+// src/app.js
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -17,6 +18,9 @@ const httpLogger = require("./middlewares/httpLogger.middleware");
 
 const app = express();
 
+// Enable proxy trust for Vercel/reverse proxies (Fixes rate-limit error)
+app.set("trust proxy", 1);
+
 // Initialize Swagger Documentation
 setupSwagger(app);
 
@@ -29,7 +33,8 @@ app.set("views", path.join(__dirname, "views"));
 const allowedOrigins = [
   "http://localhost:5173",
   "https://careeros-ui.vercel.app",
-  "https://careeros-api-22tq.vercel.app", // Added API domain for Swagger UI
+  "https://careeros-api-22tq.vercel.app",
+  "https://careeros-api-beta.vercel.app",
 ];
 
 app.use(
@@ -57,7 +62,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 1. Attach Request Logger Middleware Early (Logs all incoming HTTP traffic)
+// 1. Attach Request Logger Middleware
 app.use(httpLogger);
 
 if (process.env.NODE_ENV === "development") {
@@ -72,7 +77,7 @@ app.use(
   }),
 );
 
-// Base Health Check
+// Routes
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -80,13 +85,12 @@ app.get("/", (req, res) => {
   });
 });
 
-// 2. Application Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/candidate/profile", profileRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/", publicRoutes);
 
-// 3. Error Handling Middlewares (Must be defined last)
+// Error handling
 app.use(notFound);
 app.use(errorHandler);
 

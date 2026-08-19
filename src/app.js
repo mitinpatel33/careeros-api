@@ -18,51 +18,45 @@ const httpLogger = require("./middlewares/httpLogger.middleware");
 
 const app = express();
 
-// Enable proxy trust for Vercel/reverse proxies (Fixes rate-limit error)
+// Trust reverse proxy (Required for Vercel rate-limiter and IP tracking)
 app.set("trust proxy", 1);
 
-// Initialize Swagger Documentation
-setupSwagger(app);
-
-// View engine setup
-app.engine("html", ejs.renderFile);
-app.set("view engine", "html");
-app.set("views", path.join(__dirname, "views"));
-
-// CORS Configuration
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://careeros-ui.vercel.app",
-  "https://careeros-api-22tq.vercel.app",
-  "https://careeros-api-beta.vercel.app",
-];
-
+// Configure CORS to accept local and production Swagger requests
 app.use(
   cors({
-    origin(origin, callback) {
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or same-origin Swagger requests)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
+      
+      // Dynamic origin acceptance for Vercel previews and localhost
+      if (
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        origin.endsWith(".vercel.app")
+      ) {
         return callback(null, true);
       }
       return callback(new Error("CORS Not Allowed"));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "accept"],
-  }),
+    allowedHeaders: ["Content-Type", "Authorization", "accept", "Origin", "X-Requested-With"],
+  })
 );
 
+// Disable CSP restriction for inline Swagger styles
 app.use(
   helmet({
     contentSecurityPolicy: false,
-  }),
+    crossOriginEmbedderPolicy: false,
+  })
 );
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 1. Attach Request Logger Middleware
+// Request logging middleware
 app.use(httpLogger);
 
 if (process.env.NODE_ENV === "development") {
@@ -74,10 +68,13 @@ app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 200,
-  }),
+  })
 );
 
-// Routes
+// Attach Swagger Docs
+setupSwagger(app);
+
+// Application Routes
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -90,7 +87,7 @@ app.use("/api/candidate/profile", profileRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/", publicRoutes);
 
-// Error handling
+// Error Middlewares
 app.use(notFound);
 app.use(errorHandler);
 

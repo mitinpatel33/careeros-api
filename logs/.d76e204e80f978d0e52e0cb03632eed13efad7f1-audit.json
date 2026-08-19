@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\Development\\CareerOs\\career-os-api\\logs\\.d76e204e80f978d0e52e0cb03632eed13efad7f1-audit.json",
+    "files": [
+        {
+            "date": 1787120164369,
+            "name": "C:\\Development\\CareerOs\\career-os-api\\logs\\combined-2026-08-19.log",
+            "hash": "834acb2b4b6a529a2eacba46a810ce86793e1474466fc3e3842fcca152f7972f"
+        }
+    ],
+    "hashType": "sha256"
+}

@@ -15,6 +15,8 @@ const { setupSwagger } = require("../swagger");
 const { success } = require("zod");
 const ejs = require("ejs");
 
+const httpLogger = require('./middlewares/httpLogger.middleware');
+
 const app = express();
 
 setupSwagger(app);
@@ -76,6 +78,8 @@ app.use("/api/candidate/profile", profileRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/", publicRoutes);
 
+// 1. Log all incoming HTTP requests
+app.use(httpLogger);
 app.use(notFound);
 app.use(errorHandler);
 

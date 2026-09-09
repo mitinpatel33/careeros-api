@@ -13,6 +13,10 @@ const {
   ProfileSetting,
 } = require("../models/candidate-profile.model.js");
 const { User } = require("../models/user.model.js");
+const {
+  extractTextFromBuffer,
+  parseResumeData,
+} = require("../services/resumeParser.service.js");
 const { successResponse } = require("../utils/apiResponse.js");
 const { asyncHandler } = require("../utils/asyncHandler");
 
@@ -376,4 +380,115 @@ exports.getProfileSections = asyncHandler(async (req, res) => {
 
   const response = Object.assign({}, ...results);
   return successResponse(res, "Sections fetched successfully.", response);
+});
+
+// 1. Parse uploaded resume and return extracted data (No DB writes yet, for client-side editing/filling)
+exports.importResume = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res
+      .status(400)
+      .json({ success: false, message: "No file uploaded." });
+  }
+
+  // 1. Extract text from buffer on server
+  const rawText = await extractTextFromBuffer(
+    req.file.buffer,
+    req.file.mimetype,
+  );
+
+  // 2. Parse extracted text with Gemini
+  const parsedData = await parseResumeData(rawText);
+
+  res.status(200).json({
+    success: true,
+    message: "Resume parsed successfully",
+    data: parsedData,
+  });
+});
+
+// Helper to parse human dates or invalid strings into valid Date objects or null
+function safeParseDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) return val;
+
+  // Remove ordinal suffixes like 'th', 'st', 'nd', 'rd' (e.g. "12th Sep 1996" -> "12 Sep 1996")
+  const cleanedVal = String(val).replace(/(\d+)(st|nd|rd|th)/i, "$1");
+  const parsed = new Date(cleanedVal);
+
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// Recursively clean object keys that represent date fields
+function normalizePayloadDates(data) {
+  if (!data || typeof data !== "object") return data;
+
+  if (Array.isArray(data)) {
+    return data.map((item) => normalizePayloadDates(item));
+  }
+
+  const result = { ...data };
+  const dateKeys = [
+    "dateOfBirth",
+    "startDate",
+    "endDate",
+    "issuedDate",
+    "achievementDate",
+  ];
+
+  for (const key of Object.keys(result)) {
+    if (dateKeys.includes(key)) {
+      result[key] = safeParseDate(result[key]);
+    } else if (typeof result[key] === "object" && result[key] !== null) {
+      result[key] = normalizePayloadDates(result[key]);
+    }
+  }
+
+  return result;
+}
+
+// 2. Bulk update/fill all profile sections at once after user reviews/edits
+exports.bulkSaveProfile = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  // Normalize date formats throughout the payload
+  const payload = normalizePayloadDates(req.body);
+
+  // Single-document sections processing
+  const singleSectionPromises = Object.keys(singleSectionModels).map(
+    async (key) => {
+      if (payload[key] && Object.keys(payload[key]).length > 0) {
+        const Model = singleSectionModels[key];
+        return Model.findOneAndUpdate(
+          { userId },
+          { $set: { ...payload[key], userId } },
+          { upsert: true, returnDocument: "after", runValidators: true },
+        );
+      }
+    },
+  );
+
+  // Collection (array) sections processing: replace existing entries
+  const collectionPromises = Object.keys(collectionSectionModels).map(
+    async (key) => {
+      if (Array.isArray(payload[key])) {
+        const Model = collectionSectionModels[key];
+        await Model.deleteMany({ userId });
+
+        if (payload[key].length > 0) {
+          const cleanedItems = payload[key].map(({ _id, ...rest }) => ({
+            ...rest,
+            userId,
+          }));
+          return Model.insertMany(cleanedItems);
+        }
+      }
+    },
+  );
+
+  await Promise.all([...singleSectionPromises, ...collectionPromises]);
+
+  return successResponse(
+    res,
+    "Full profile imported and saved successfully.",
+    null,
+  );
 });

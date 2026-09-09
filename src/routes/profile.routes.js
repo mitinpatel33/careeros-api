@@ -4,6 +4,8 @@ const { protect, authorize } = require("../middlewares/auth.middleware");
 
 const { ROLES } = require("../constants/roles");
 
+const multer = require("multer");
+
 const {
   getCompletion,
   publishProfile,
@@ -18,11 +20,33 @@ const {
   deleteCollection,
   checkSlug,
   getProfileSections,
+  bulkSaveProfile,
+  importResume,
 } = require("../controllers/candidateProfile.controller");
 
-const { personalInfo } = require("../validations/candidateProfile.validation");
-
 const router = express.Router();
+
+// Memory Storage for fastest processing (Zero local disk I/O latency)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
+  fileFilter: (req, file, cb) => {
+    const validMimetypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+    if (validMimetypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error(
+          "Unsupported file format. Please upload PDF or Word documents.",
+        ),
+      );
+    }
+  },
+});
 
 router.use(protect);
 router.use(authorize(ROLES.CANDIDATE));
@@ -31,7 +55,51 @@ const singleSections = ["personal", "summary", "contact", "social", "settings"];
 
 /**
  * @swagger
- * /api/profile/completion:
+ * /profile/import-resume:
+ *   post:
+ *     summary: Parse resume using Gemini AI without saving to database
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Parsed JSON structure ready for client state/form initialization
+ */
+router.post("/import-resume", upload.single("file"), importResume);
+
+/**
+ * @swagger
+ * /profile/bulk-save:
+ *   post:
+ *     summary: Save or replace all updated profile sections at once after user review/editing
+ *     tags: [Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: All profile sections saved successfully
+ */
+router.post("/bulk-save", bulkSaveProfile);
+
+/**
+ * @swagger
+ * /profile/completion:
  *   get:
  *     summary: Get profile completion percentage
  *     tags:
@@ -65,7 +133,7 @@ router.get("/completion", getCompletion);
 
 /**
  * @swagger
- * /api/profile/check-slug:
+ * /profile/check-slug:
  *   get:
  *     summary: Check profile slug availability
  *     tags:
@@ -98,7 +166,7 @@ router.get("/check-slug", checkSlug);
 
 /**
  * @swagger
- * /api/profile/publish:
+ * /profile/publish:
  *   post:
  *     summary: Publish or unpublish profile
  *     tags:

@@ -1,1 +1,3 @@
-logs/combined-2026-08-31.log
+logs/
+node_modules/
+node_modules/.package-lock.json

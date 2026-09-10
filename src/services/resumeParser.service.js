@@ -5,116 +5,6 @@ const pdfParse = require("pdf-parse-fixed");
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-// Compact JSON Schema for response execution
-const fastResumeSchema = {
-  type: Type.OBJECT,
-  properties: {
-    personal: {
-      type: Type.OBJECT,
-      properties: {
-        firstName: { type: Type.STRING },
-        lastName: { type: Type.STRING },
-        jobTitle: { type: Type.STRING },
-        dateOfBirth: { type: Type.STRING },
-        gender: { type: Type.STRING },
-        nationality: { type: Type.STRING },
-      },
-    },
-    summary: {
-      type: Type.OBJECT,
-      properties: {
-        professionalSummary: { type: Type.STRING },
-      },
-    },
-    contact: {
-      type: Type.OBJECT,
-      properties: {
-        email: { type: Type.STRING },
-        mobile: { type: Type.STRING },
-        address: { type: Type.STRING },
-        city: { type: Type.STRING },
-        state: { type: Type.STRING },
-        country: { type: Type.STRING },
-      },
-    },
-    social: {
-      type: Type.OBJECT,
-      properties: {
-        linkedInUrl: { type: Type.STRING },
-        gitHubUrl: { type: Type.STRING },
-        portfolioUrl: { type: Type.STRING },
-      },
-    },
-    skills: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          skillName: { type: Type.STRING },
-          proficiency: { type: Type.STRING },
-        },
-      },
-    },
-    educations: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          instituteName: { type: Type.STRING },
-          degree: { type: Type.STRING },
-          fieldOfStudy: { type: Type.STRING },
-          startDate: { type: Type.STRING },
-          endDate: { type: Type.STRING },
-        },
-      },
-    },
-    experiences: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          companyName: { type: Type.STRING },
-          designation: { type: Type.STRING },
-          startDate: { type: Type.STRING },
-          endDate: { type: Type.STRING },
-          isCurrentCompany: { type: Type.BOOLEAN },
-          description: { type: Type.STRING },
-        },
-      },
-    },
-    projects: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          projectName: { type: Type.STRING },
-          role: { type: Type.STRING },
-          description: { type: Type.STRING },
-        },
-      },
-    },
-    certificates: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          certificateName: { type: Type.STRING },
-          issuedBy: { type: Type.STRING },
-        },
-      },
-    },
-    languages: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          languageName: { type: Type.STRING },
-        },
-      },
-    },
-  },
-};
-
 /**
  * Utility helper to sleep/delay execution
  */
@@ -126,7 +16,6 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function cleanAndParseJson(rawText) {
   if (!rawText) return {};
 
-  // Remove markdown code blocks if Gemini returns string wrapped in ```json ... ```
   let cleaned = rawText.trim();
   if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
@@ -147,7 +36,6 @@ function cleanAndParseJson(rawText) {
 
 /**
  * Extracts raw text from document buffer.
- * Returns raw text string if text-based, or original Buffer if scanned PDF.
  */
 async function extractTextFromBuffer(buffer, mimeType) {
   try {
@@ -185,9 +73,10 @@ async function extractTextFromBuffer(buffer, mimeType) {
 }
 
 /**
- * Executes generateContent API call with automated retry & fallback logic
+ * Executes generateContent API call with automated retry & fallback logic.
+ * Note: responseSchema is omitted to prevent structural truncation on large sub-arrays.
  */
-async function generateContentWithRetry(parts, primaryModel, maxTokens = 2048) {
+async function generateContentWithRetry(parts, primaryModel, maxTokens = 8192) {
   const maxRetries = parseInt(process.env.MAX_RETRIES || "2", 10);
   const baseDelay = parseInt(process.env.RETRY_DELAY_MS || "1000", 10);
   const fallbackModel = "gemini-1.5-flash";
@@ -201,7 +90,6 @@ async function generateContentWithRetry(parts, primaryModel, maxTokens = 2048) {
         contents: [{ role: "user", parts }],
         config: {
           responseMimeType: "application/json",
-          responseSchema: fastResumeSchema,
           temperature: 0.0,
           maxOutputTokens: maxTokens,
         },
@@ -235,19 +123,34 @@ async function generateContentWithRetry(parts, primaryModel, maxTokens = 2048) {
 }
 
 /**
- * Parses resume data into JSON structure via Gemini
+ * Parses resume data into full JSON structure via Gemini with schema instruction guidance
  */
 async function parseResumeData(inputData) {
   const primaryModel = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   let parts = [];
-  let maxTokens = 2048; // Default output token size
+  const maxTokens = 8192;
 
-  const systemInstruction =
-    "Extract structured profile information from this resume into JSON strictly following the schema. Convert ALL dates to YYYY-MM-DD format (e.g., '12th Sep 1996' becomes '1996-09-12'). Keep description fields concise (max 1 sentence per entry). Omit empty attributes.";
+  const systemInstruction = `
+You are an expert ATS resume parser. Extract ALL profile information from the resume text into a valid JSON object matching this exact structure:
+{
+  "personal": { "firstName": "", "lastName": "", "jobTitle": "", "dateOfBirth": "", "gender": "", "nationality": "" },
+  "summary": { "professionalSummary": "" },
+  "contact": { "email": "", "mobile": "", "address": "", "city": "", "state": "", "country": "" },
+  "social": { "linkedInUrl": "", "gitHubUrl": "", "portfolioUrl": "" },
+  "skills": [ { "skillName": "", "proficiency": "" } ],
+  "educations": [ { "instituteName": "", "degree": "", "fieldOfStudy": "", "startDate": "", "endDate": "" } ],
+  "experiences": [ { "companyName": "", "designation": "", "startDate": "", "endDate": "", "isCurrentCompany": false, "description": "" } ],
+  "projects": [ { "projectName": "", "companyName": "", "role": "", "description": "" } ],
+  "certificates": [ { "certificateName": "", "issuedBy": "" } ],
+  "languages": [ { "languageName": "" } ]
+}
+- Handle non-standard section headers intelligently (e.g., "Work History" -> experiences, "Academics" -> educations).
+- Do NOT truncate arrays or skip entries. Extract every single job, project, skill, and educational qualification found in the text.
+- Convert ALL dates to YYYY-MM-DD format. If only a year is provided, map to YYYY-01-01.
+- Omit empty properties or arrays if data is completely missing. Return valid JSON only.
+`;
 
   if (inputData.isBuffer) {
-    // Increase token cap to 4096 for vision mode to prevent response truncation
-    maxTokens = 4096;
     parts = [
       {
         inlineData: {
@@ -258,12 +161,8 @@ async function parseResumeData(inputData) {
       { text: systemInstruction },
     ];
   } else {
-    const cleanedText = inputData.text.slice(0, 8000);
-    parts = [
-      {
-        text: `${systemInstruction}\n\nResume Text:\n${cleanedText}`,
-      },
-    ];
+    const cleanedText = inputData.text.slice(0, 15000);
+    parts = [{ text: `${systemInstruction}\n\nResume Text:\n${cleanedText}` }];
   }
 
   const response = await generateContentWithRetry(

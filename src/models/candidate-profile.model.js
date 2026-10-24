@@ -20,6 +20,12 @@ const candidatePersonalInfoSchema = new mongoose.Schema(
       trim: true,
     },
 
+    jobTitleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "jobTitle",
+      index: true,
+    },
+    
     jobTitle: {
       type: String,
       trim: true,

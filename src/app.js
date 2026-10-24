@@ -12,6 +12,7 @@ const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
 const publicRoutes = require("./routes/public-resume.routes");
 const aiRoutes = require("./routes/ai.routes");
+const interviewRoutes = require("./routes/interview.routes");
 const { errorHandler, notFound } = require("./middlewares/error.middleware");
 const { setupSwagger } = require("../swagger");
 const httpLogger = require("./middlewares/httpLogger.middleware");
@@ -43,19 +44,22 @@ app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      
-      if (
-        allowedOrigins.includes(origin) ||
-        origin.endsWith(".vercel.app")
-      ) {
+
+      if (allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
         return callback(null, true);
       }
       return callback(new Error("CORS Not Allowed"));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "accept", "Origin", "X-Requested-With"],
-  })
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "accept",
+      "Origin",
+      "X-Requested-With",
+    ],
+  }),
 );
 
 // Configure Helmet without blocking Swagger UI assets
@@ -63,7 +67,7 @@ app.use(
   helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
-  })
+  }),
 );
 
 app.use(express.json({ limit: "10mb" }));
@@ -82,7 +86,7 @@ app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 200,
-  })
+  }),
 );
 
 // View engine setup
@@ -104,6 +108,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/candidate/profile", profileRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/interview", interviewRoutes);
 app.use("/", publicRoutes);
 
 // Error Middlewares

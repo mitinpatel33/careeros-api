@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
@@ -25,13 +25,36 @@ const userSchema = new mongoose.Schema(
 
     passwordHash: {
       type: String,
-      required: true,
+      required: function () {
+        return this.provider === "email";
+      },
+      default: null,
     },
+
+    provider: {
+      type: String,
+      enum: ["email", "google", "facebook"],
+      default: "email",
+    },
+
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    facebookId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+
+    avatar: String,
 
     role: {
       type: String,
-      enum: ['Candidate', 'Company', 'Admin'],
-      default: 'Candidate',
+      enum: ["Candidate", "Company", "Admin"],
+      default: "Candidate",
       index: true,
     },
 
@@ -63,4 +86,4 @@ const userSchema = new mongoose.Schema(
   },
 );
 
-module.exports.User = mongoose.model('users', userSchema);
+module.exports.User = mongoose.model("users", userSchema);

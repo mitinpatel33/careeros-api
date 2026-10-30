@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const {
   ProfileAchievement,
   ProfileCertificate,
@@ -19,6 +20,7 @@ const {
 } = require("../services/resumeParser.service.js");
 const { successResponse } = require("../utils/apiResponse.js");
 const { asyncHandler } = require("../utils/asyncHandler");
+const { appError } = require("../utils/appError"); // was missing -> 404s crashed as 500
 
 const singleSectionModels = {
   personal: ProfilePersonalInfo,
@@ -38,187 +40,184 @@ const collectionSectionModels = {
   languages: ProfileLanguage,
 };
 
+const ALL_MODELS = { ...singleSectionModels, ...collectionSectionModels };
+const LIST_SORT = { displayOrder: 1, createdAt: -1 }; // matches the compound index
+
+/* ------------------------------ helpers ------------------------------ */
+// never let the client overwrite ownership / system fields
+const clean = ({ _id, userId, createdAt, updatedAt, __v, ...rest } = {}) =>
+  rest;
+
+const assertId = (id, section) => {
+  if (!mongoose.isValidObjectId(id))
+    throw appError(`${section} record not found.`, 404);
+};
+
+/**
+ * Replace a user's list in ONE round trip (ordered bulkWrite: deleteMany, then inserts).
+ * Mongoose validates/casts every insert before anything is sent, so invalid input
+ * can no longer wipe the old data (the old deleteMany -> insertMany could).
+ */
+const replaceCollection = async (Model, userId, items) => {
+  const now = new Date();
+  const docs = items.map((item, i) => ({
+    ...clean(item),
+    _id: new mongoose.Types.ObjectId(),
+    userId,
+    displayOrder: i, // keep the order the user submitted
+    createdAt: now,
+    updatedAt: now,
+  }));
+
+  if (!docs.length) {
+    await Model.deleteMany({ userId });
+    return [];
+  }
+
+  await Model.bulkWrite([
+    { deleteMany: { filter: { userId } } },
+    ...docs.map((document) => ({ insertOne: { document } })),
+  ]);
+  return docs;
+};
+
+const RESERVED_SLUGS = new Set([
+  "admin",
+  "api",
+  "www",
+  "support",
+  "blog",
+  "help",
+  "login",
+  "signup",
+]);
+
+const slugError = (slug, { checkReserved = true } = {}) => {
+  if (!slug || slug.length < 3 || slug.length > 30)
+    return "Slug must be 3-30 characters.";
+  if (!/^[a-z0-9-]+$/.test(slug))
+    return "Only lowercase letters, numbers, and hyphens.";
+  if (checkReserved && RESERVED_SLUGS.has(slug)) return "This URL is reserved.";
+  return null;
+};
+
+/* --------------------------- single sections --------------------------- */
 exports.getSingleSection = (section) =>
   asyncHandler(async (req, res) => {
-    const Model = singleSectionModels[section];
-
-    const data = await Model.findOne({
-      userId: req.user._id,
-    }).lean();
-
+    const data = await singleSectionModels[section]
+      .findOne({ userId: req.user._id })
+      .lean();
     return successResponse(res, `${section} fetched successfully.`, data);
   });
 
 exports.saveSingleSection = (section) =>
   asyncHandler(async (req, res) => {
-    const Model = singleSectionModels[section];
-
-    const data = await Model.findOneAndUpdate(
-      {
-        userId: req.user._id,
-      },
-      {
-        $set: {
-          ...req.body,
-          userId: req.user._id,
+    const data = await singleSectionModels[section]
+      .findOneAndUpdate(
+        { userId: req.user._id },
+        { $set: { ...clean(req.body), userId: req.user._id } },
+        {
+          returnDocument: "after",
+          upsert: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
         },
-      },
-      {
-        returnDocument: "after",
-        upsert: true,
-        runValidators: true,
-      },
-    ).lean();
-
+      )
+      .lean();
     return successResponse(res, `${section} saved successfully.`, data);
   });
 
 exports.deleteSingleSection = (section) =>
   asyncHandler(async (req, res) => {
-    const Model = singleSectionModels[section];
-
-    await Model.deleteOne({
-      userId: req.user._id,
-    });
-
+    await singleSectionModels[section].deleteOne({ userId: req.user._id });
     return successResponse(res, `${section} deleted successfully.`, null);
   });
 
+/* ------------------------------ collections ------------------------------ */
 exports.getCollection = (section) =>
   asyncHandler(async (req, res) => {
-    const Model = collectionSectionModels[section];
-
-    const data = await Model.find({
-      userId: req.user._id,
-    })
-      .sort({ displayOrder: 1, createdAt: -1 })
+    const data = await collectionSectionModels[section]
+      .find({ userId: req.user._id })
+      .sort(LIST_SORT)
       .lean();
-
     return successResponse(res, `${section} fetched successfully.`, data);
   });
 
 exports.getCollectionById = (section) =>
   asyncHandler(async (req, res) => {
-    const Model = collectionSectionModels[section];
-
-    const data = await Model.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
-    }).lean();
-
-    if (!data) {
-      throw appError(`${section} record not found.`, 404);
-    }
-
+    assertId(req.params.id, section);
+    const data = await collectionSectionModels[section]
+      .findOne({ _id: req.params.id, userId: req.user._id })
+      .lean();
+    if (!data) throw appError(`${section} record not found.`, 404);
     return successResponse(res, `${section} fetched successfully.`, data);
   });
 
 exports.saveCollection = (section) =>
   asyncHandler(async (req, res) => {
     const Model = collectionSectionModels[section];
+    const userId = req.user._id;
 
-    // Single document update by ID
+    // update one record
     if (req.params.id) {
+      assertId(req.params.id, section);
       const data = await Model.findOneAndUpdate(
-        { _id: req.params.id, userId: req.user._id },
-        { $set: req.body },
-        {
-          returnDocument: "after", // 👈 fix deprecation
-          runValidators: true,
-        },
+        { _id: req.params.id, userId },
+        { $set: clean(req.body) },
+        { returnDocument: "after", runValidators: true },
       ).lean();
-
-      if (!data) {
-        throw appError(`${section} record not found.`, 404);
-      }
-
+      if (!data) throw appError(`${section} record not found.`, 404);
       return successResponse(res, `${section} saved successfully.`, data);
     }
 
-    // Bulk replace: delete old, insert new (no _id to avoid duplicates)
-    const items = req.body; // expected to be an array
-
-    // Remove all existing records for this user/section
-    await Model.deleteMany({ userId: req.user._id });
-
-    // Strip any `_id` that might be present and ensure userId is set
-    const newItems = items.map((item) => {
-      const { _id, ...rest } = item; // ignore existing _id
-      return { ...rest, userId: req.user._id };
-    });
-
-    const data = await Model.insertMany(newItems);
-
+    // replace the whole list
+    if (!Array.isArray(req.body))
+      throw appError("An array of records is required.", 400);
+    const data = await replaceCollection(Model, userId, req.body);
     return successResponse(res, `${section} saved successfully.`, data);
   });
 
 exports.deleteCollection = (section) =>
   asyncHandler(async (req, res) => {
-    const Model = collectionSectionModels[section];
-
-    const deleted = await Model.findOneAndDelete({
+    assertId(req.params.id, section);
+    const { deletedCount } = await collectionSectionModels[section].deleteOne({
       _id: req.params.id,
       userId: req.user._id,
-    }).lean();
-
-    if (!deleted) {
-      throw appError(`${section} record not found.`, 404);
-    }
-
+    });
+    if (!deletedCount) throw appError(`${section} record not found.`, 404);
     return successResponse(res, `${section} deleted successfully.`, null);
   });
 
+/* ------------------------------ completion ------------------------------ */
+const COMPLETION_STEPS = [
+  ["personal", ProfilePersonalInfo, 10],
+  ["summary", ProfileSummary, 10],
+  ["contact", ProfileContactInfo, 10],
+  ["social", ProfileSocialInfo, 5],
+  ["skills", ProfileSkill, 15],
+  ["educations", ProfileEducation, 15],
+  ["experiences", ProfileExperience, 15],
+  ["projects", ProfileProject, 10],
+  ["certificates", ProfileCertificate, 5],
+  ["achievements", ProfileAchievement, 2.5],
+  ["languages", ProfileLanguage, 2.5],
+];
+
 exports.getCompletion = asyncHandler(async (req, res) => {
   const userId = req.user._id;
-
-  const [
-    personal,
-    summary,
-    contact,
-    social,
-    skills,
-    educations,
-    experiences,
-    projects,
-    certificates,
-    achievements,
-    languages,
-  ] = await Promise.all([
-    ProfilePersonalInfo.exists({ userId }),
-    ProfileSummary.exists({ userId }),
-    ProfileContactInfo.exists({ userId }),
-    ProfileSocialInfo.exists({ userId }),
-    ProfileSkill.exists({ userId }),
-    ProfileEducation.exists({ userId }),
-    ProfileExperience.exists({ userId }),
-    ProfileProject.exists({ userId }),
-    ProfileCertificate.exists({ userId }),
-    ProfileAchievement.exists({ userId }),
-    ProfileLanguage.exists({ userId }),
-  ]);
+  // exists() is index-only (userId prefix), all 11 run in parallel
+  const found = await Promise.all(
+    COMPLETION_STEPS.map(([, Model]) => Model.exists({ userId })),
+  );
 
   const completedSteps = [];
-
   let completionPercentage = 0;
-
-  const add = (condition, step, weight) => {
-    if (condition) {
+  COMPLETION_STEPS.forEach(([step, , weight], i) => {
+    if (found[i]) {
       completedSteps.push(step);
       completionPercentage += weight;
     }
-  };
-
-  add(personal, "personal", 10);
-  add(summary, "summary", 10);
-  add(contact, "contact", 10);
-  add(social, "social", 5);
-  add(skills, "skills", 15);
-  add(educations, "educations", 15);
-  add(experiences, "experiences", 15);
-  add(projects, "projects", 10);
-  add(certificates, "certificates", 5);
-  add(achievements, "achievements", 2.5);
-  add(languages, "languages", 2.5);
+  });
 
   return successResponse(res, "Completion fetched successfully.", {
     completionPercentage,
@@ -226,8 +225,11 @@ exports.getCompletion = asyncHandler(async (req, res) => {
   });
 });
 
-// Helper – fetch full profile by user ID (reusable)
+/* ---------------------- full profile (used by public page) ---------------------- */
 exports.fetchFullProfileByUserId = async (userId) => {
+  const list = (Model) => Model.find({ userId }).sort(LIST_SORT).lean();
+  const one = (Model) => Model.findOne({ userId }).lean();
+
   const [
     personal,
     summary,
@@ -241,17 +243,17 @@ exports.fetchFullProfileByUserId = async (userId) => {
     social,
     contact,
   ] = await Promise.all([
-    ProfilePersonalInfo.findOne({ userId }),
-    ProfileSummary.findOne({ userId }),
-    ProfileEducation.find({ userId }).sort({ displayOrder: 1 }),
-    ProfileExperience.find({ userId }).sort({ displayOrder: 1 }),
-    ProfileSkill.find({ userId }).sort({ displayOrder: 1 }),
-    ProfileProject.find({ userId }).sort({ displayOrder: 1 }),
-    ProfileCertificate.find({ userId }).sort({ displayOrder: 1 }),
-    ProfileAchievement.find({ userId }).sort({ displayOrder: 1 }),
-    ProfileLanguage.find({ userId }).sort({ displayOrder: 1 }),
-    ProfileSocialInfo.findOne({ userId }),
-    ProfileContactInfo.findOne({ userId }),
+    one(ProfilePersonalInfo),
+    one(ProfileSummary),
+    list(ProfileEducation),
+    list(ProfileExperience),
+    list(ProfileSkill),
+    list(ProfileProject),
+    list(ProfileCertificate),
+    list(ProfileAchievement),
+    list(ProfileLanguage),
+    one(ProfileSocialInfo),
+    one(ProfileContactInfo),
   ]);
 
   return {
@@ -269,134 +271,143 @@ exports.fetchFullProfileByUserId = async (userId) => {
   };
 };
 
+/* ----------------------------- publish helpers ----------------------------- */
+// RESUME_DOMAIN may be "localhost:5000", "careeros.com" or a full "https://careeros.com"
+const publicUrl = (req, slug) => {
+  const base = process.env.RESUME_DOMAIN || req.headers.host;
+  const origin = /^https?:\/\//i.test(base)
+    ? base
+    : `${req.protocol}://${base}`;
+  return `${origin.replace(/\/$/, "")}/resume/${slug}`;
+};
+
+// keep the settings section in step with the user record
+const syncSetting = (userId, isPublished) =>
+  ProfileSetting.updateOne(
+    { userId },
+    { $set: { isPublished } },
+    { upsert: true, setDefaultsOnInsert: true },
+  );
+
+/* --------------------------------- slug --------------------------------- */
 exports.checkSlug = asyncHandler(async (req, res) => {
   const { slug } = req.query;
-  if (!slug || slug.length < 3 || slug.length > 30) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Slug must be 3‑30 characters." });
-  }
-  if (!/^[a-z0-9-]+$/.test(slug)) {
-    return res.status(400).json({
-      success: false,
-      message: "Only lowercase letters, numbers, and hyphens.",
-    });
-  }
-  const reserved = [
-    "admin",
-    "api",
-    "www",
-    "support",
-    "blog",
-    "help",
-    "login",
-    "signup",
-  ];
-  if (reserved.includes(slug)) {
-    return res
-      .status(400)
-      .json({ success: false, message: "This URL is reserved." });
-  }
+  const error = slugError(slug);
+  if (error) return res.status(400).json({ success: false, message: error });
 
-  const existingUser = await User.findOne({ profileSlug: slug });
-  res.json({ available: !existingUser });
+  const taken = await User.exists({ profileSlug: slug }); // index-only, no document fetch
+  res.json({ available: !taken });
 });
 
-// Publish resume (authenticated)
 exports.publishProfile = asyncHandler(async (req, res) => {
   const { slug } = req.body;
   const userId = req.user._id;
 
-  if (!slug || slug.length < 3 || slug.length > 30) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Slug must be 3‑30 characters." });
-  }
-  if (!/^[a-z0-9-]+$/.test(slug)) {
-    return res.status(400).json({
-      success: false,
-      message: "Only lowercase letters, numbers, and hyphens.",
-    });
+  const error = slugError(slug, { checkReserved: false });
+  if (error) return res.status(400).json({ success: false, message: error });
+
+  const taken = await User.exists({ profileSlug: slug, _id: { $ne: userId } });
+  if (taken) return res.status(400).json({ success: false, message: "This URL is already taken." });
+
+  const fullUrl = publicUrl(req, slug);
+  const publishedAt = new Date();
+
+  try {
+    await Promise.all([
+      User.updateOne(
+        { _id: userId },
+        { $set: { profileSlug: slug, publishedUrl: fullUrl, isPublished: true, publishedAt } },
+      ),
+      syncSetting(userId, true),
+    ]);
+  } catch (e) {
+    if (e.code === 11000) {
+      return res.status(400).json({ success: false, message: "This URL is already taken." });
+    }
+    throw e;
   }
 
-  const existingOwner = await User.findOne({
-    profileSlug: slug,
-    _id: { $ne: userId },
+  res.json({
+    success: true,
+    message: "Resume published!",
+    url: fullUrl,
+    data: { profileSlug: slug, publishedUrl: fullUrl, isPublished: true, publishedAt },
   });
-  if (existingOwner) {
-    return res
-      .status(400)
-      .json({ success: false, message: "This URL is already taken." });
-  }
+});
 
-  const domain = process.env.RESUME_DOMAIN || `${req.headers.host}`;
-  const fullUrl = `http://${domain}/resume/${slug}`;
+// POST /candidate/profile/unpublish  (keeps the slug, so republishing restores the same link)
+exports.unpublishProfile = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  await Promise.all([
+    User.updateOne({ _id: userId }, { $set: { isPublished: false } }),
+    syncSetting(userId, false),
+  ]);
+  return successResponse(res, "Resume unpublished.", null);
+});
 
-  const user = await User.findByIdAndUpdate(
-    userId,
-    {
-      profileSlug: slug,
-      publishedUrl: fullUrl,
-      isPublished: true,
-      publishedAt: new Date(),
-    },
-    { new: true },
+/* ------------------------------ publish status ------------------------------ */
+// GET /candidate/profile/published-url  (one indexed read by _id, 3 fields)
+exports.getPublishStatus = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id)
+    .select("profileSlug isPublished publishedAt")
+    .lean();
+
+  const slug = user?.profileSlug || null;
+  const isPublished = Boolean(user?.isPublished && slug);
+
+  return successResponse(res, "Publish status fetched successfully.", {
+    profileSlug: slug,
+    isPublished,
+    // built from the CURRENT domain, so changing RESUME_DOMAIN never leaves stale links
+    publishedUrl: isPublished ? publicUrl(req, slug) : null,
+    publishedAt: user?.publishedAt ?? null,
+  });
+});
+
+/* ------------------------------ all sections ------------------------------ */
+exports.getProfileSections = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const { include } = req.query;
+
+  // only known sections; no `include` -> everything
+  const requested = include
+    ? [
+        ...new Set(
+          String(include)
+            .split(",")
+            .map((s) => s.trim()),
+        ),
+      ].filter((k) => ALL_MODELS[k])
+    : Object.keys(ALL_MODELS);
+
+  const entries = await Promise.all(
+    requested.map(async (key) => {
+      const Model = ALL_MODELS[key];
+      const data = singleSectionModels[key]
+        ? await Model.findOne({ userId }).lean()
+        : await Model.find({ userId }).sort(LIST_SORT).lean();
+      return [key, data];
+    }),
   );
 
-  res.json({ success: true, message: "Resume published!", url: fullUrl });
+  return successResponse(
+    res,
+    "Sections fetched successfully.",
+    Object.fromEntries(entries),
+  );
 });
 
-exports.getProfileSections = asyncHandler(async (req, res) => {
-  const { include } = req.query;
-  const userId = req.user._id;
-
-  // If no `include` param is given, fetch ALL known sections instead of
-  // requiring the caller to list them out.
-  const requested = include
-    ? include.split(",").map((s) => s.trim())
-    : [
-        ...Object.keys(singleSectionModels),
-        ...Object.keys(collectionSectionModels),
-      ];
-
-  // fetch single and collection sections in parallel
-  const results = await Promise.all([
-    ...requested
-      .filter((k) => singleSectionModels[k])
-      .map(async (key) => {
-        const data = await singleSectionModels[key].findOne({ userId }).lean();
-        return { [key]: data };
-      }),
-    ...requested
-      .filter((k) => collectionSectionModels[k])
-      .map(async (key) => {
-        const data = await collectionSectionModels[key]
-          .find({ userId })
-          .sort({ displayOrder: 1, createdAt: -1 })
-          .lean();
-        return { [key]: data };
-      }),
-  ]);
-
-  const response = Object.assign({}, ...results);
-  return successResponse(res, "Sections fetched successfully.", response);
-});
-
-/**
- * 1. Parse uploaded resume and return extracted data
- */
+/* ------------------------------ resume import ------------------------------ */
 exports.importResume = asyncHandler(async (req, res) => {
-  if (!req.file) {
+  if (!req.file)
     return res
       .status(400)
       .json({ success: false, message: "No file uploaded." });
-  }
 
   const rawText = await extractTextFromBuffer(
     req.file.buffer,
     req.file.mimetype,
   );
-
   const parsedData = await parseResumeData(rawText);
 
   res.status(200).json({
@@ -406,87 +417,54 @@ exports.importResume = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * Helper to parse human dates or invalid strings into valid Date objects or null
- */
 function safeParseDate(val) {
   if (!val) return null;
   if (val instanceof Date) return val;
-
-  const cleanedVal = String(val).replace(/(\d+)(st|nd|rd|th)/i, "$1");
-  const parsed = new Date(cleanedVal);
-
+  const parsed = new Date(String(val).replace(/(\d+)(st|nd|rd|th)/i, "$1"));
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/**
- * Recursively clean object keys that represent date fields
- */
+const DATE_KEYS = new Set([
+  "dateOfBirth",
+  "startDate",
+  "endDate",
+  "issuedDate",
+  "achievementDate",
+]);
+
 function normalizePayloadDates(data) {
   if (!data || typeof data !== "object") return data;
-
-  if (Array.isArray(data)) {
-    return data.map((item) => normalizePayloadDates(item));
-  }
+  if (Array.isArray(data)) return data.map(normalizePayloadDates);
 
   const result = { ...data };
-  const dateKeys = [
-    "dateOfBirth",
-    "startDate",
-    "endDate",
-    "issuedDate",
-    "achievementDate",
-  ];
-
   for (const key of Object.keys(result)) {
-    if (dateKeys.includes(key)) {
-      result[key] = safeParseDate(result[key]);
-    } else if (typeof result[key] === "object" && result[key] !== null) {
+    if (DATE_KEYS.has(key)) result[key] = safeParseDate(result[key]);
+    else if (result[key] && typeof result[key] === "object")
       result[key] = normalizePayloadDates(result[key]);
-    }
   }
-
   return result;
 }
 
-/**
- * 2. Bulk update/fill all profile sections at once after user reviews/edits
- */
 exports.bulkSaveProfile = asyncHandler(async (req, res) => {
   const userId = req.user._id;
-  const payload = normalizePayloadDates(req.body);
+  const payload = normalizePayloadDates(req.body) || {};
 
-  const singleSectionPromises = Object.keys(singleSectionModels).map(
-    async (key) => {
-      if (payload[key] && Object.keys(payload[key]).length > 0) {
-        const Model = singleSectionModels[key];
-        return Model.findOneAndUpdate(
-          { userId },
-          { $set: { ...payload[key], userId } },
-          { upsert: true, returnDocument: "after", runValidators: true },
-        );
-      }
-    },
-  );
+  const singleOps = Object.entries(singleSectionModels)
+    .filter(([key]) => payload[key] && Object.keys(payload[key]).length > 0)
+    .map(([key, Model]) =>
+      // updateOne: nothing to hydrate or return, the response doesn't use it
+      Model.updateOne(
+        { userId },
+        { $set: { ...clean(payload[key]), userId } },
+        { upsert: true, runValidators: true, setDefaultsOnInsert: true },
+      ),
+    );
 
-  const collectionPromises = Object.keys(collectionSectionModels).map(
-    async (key) => {
-      if (Array.isArray(payload[key])) {
-        const Model = collectionSectionModels[key];
-        await Model.deleteMany({ userId });
+  const listOps = Object.entries(collectionSectionModels)
+    .filter(([key]) => Array.isArray(payload[key]))
+    .map(([key, Model]) => replaceCollection(Model, userId, payload[key]));
 
-        if (payload[key].length > 0) {
-          const cleanedItems = payload[key].map(({ _id, ...rest }) => ({
-            ...rest,
-            userId,
-          }));
-          return Model.insertMany(cleanedItems);
-        }
-      }
-    },
-  );
-
-  await Promise.all([...singleSectionPromises, ...collectionPromises]);
+  await Promise.all([...singleOps, ...listOps]);
 
   return successResponse(
     res,

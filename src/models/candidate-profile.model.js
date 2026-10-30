@@ -1,419 +1,165 @@
 const mongoose = require("mongoose");
+const { Schema } = mongoose;
 
-const candidatePersonalInfoSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      unique: true,
-      index: true,
+const OPTIONS = { timestamps: true, versionKey: false };
+
+const userRef = (extra = {}) => ({
+  type: Schema.Types.ObjectId,
+  ref: "users",
+  required: true,
+  ...extra,
+});
+
+// ONE document per user: unique already builds the index (no extra index:true)
+const singleSchema = (fields) =>
+  new Schema({ userId: userRef({ unique: true }), ...fields }, OPTIONS);
+
+// MANY documents per user: the compound index serves filter + sort with no in-memory sort,
+// and its userId prefix covers plain { userId } lookups too
+const listSchema = (fields) => {
+  const schema = new Schema(
+    {
+      userId: userRef(),
+      displayOrder: { type: Number, default: 0 },
+      ...fields,
     },
+    OPTIONS,
+  );
+  schema.index({ userId: 1, displayOrder: 1, createdAt: -1 });
+  return schema;
+};
 
-    firstName: {
-      type: String,
-      trim: true,
-    },
+const str = { type: String, trim: true };
 
-    lastName: {
-      type: String,
-      trim: true,
-    },
-
-    jobTitleId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "jobTitle",
-      index: true,
-    },
-    
-    jobTitle: {
-      type: String,
-      trim: true,
-    },
-
-    dateOfBirth: Date,
-
-    gender: {
-      type: String,
-      trim: true,
-    },
-
-    maritalStatus: {
-      type: String,
-      trim: true,
-    },
-
-    nationality: {
-      type: String,
-      trim: true,
-    },
-
-    photoUrl: String,
-  },
-  {
-    timestamps: true,
-  },
-);
-
+/* ------------------------------ single ------------------------------ */
 module.exports.ProfilePersonalInfo = mongoose.model(
   "candidatePersonalInfo",
-  candidatePersonalInfoSchema,
-);
-
-const candidateSummarySchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      unique: true,
-      index: true,
-    },
-
-    professionalSummary: {
-      type: String,
-      trim: true,
-    },
-
-    careerObjective: {
-      type: String,
-      trim: true,
-    },
-  },
-  {
-    timestamps: true,
-  },
+  singleSchema({
+    firstName: str,
+    lastName: str,
+    jobTitleId: { type: Schema.Types.ObjectId, ref: "jobTitle", index: true },
+    jobTitle: str,
+    dateOfBirth: Date,
+    gender: str,
+    maritalStatus: str,
+    nationality: str,
+    photoUrl: String,
+  }),
 );
 
 module.exports.ProfileSummary = mongoose.model(
   "candidateSummary",
-  candidateSummarySchema,
-);
-
-const candidateContactInfoSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      unique: true,
-      index: true,
-    },
-
-    email: {
-      type: String,
-      trim: true,
-      lowercase: true,
-    },
-
-    mobile: {
-      type: String,
-      trim: true,
-    },
-
-    alternateMobile: {
-      type: String,
-      trim: true,
-    },
-
-    address: String,
-
-    city: {
-      type: String,
-      trim: true,
-    },
-
-    state: {
-      type: String,
-      trim: true,
-    },
-
-    country: {
-      type: String,
-      trim: true,
-    },
-
-    pincode: {
-      type: String,
-      trim: true,
-    },
-  },
-  {
-    timestamps: true,
-  },
+  singleSchema({ professionalSummary: str, careerObjective: str }),
 );
 
 module.exports.ProfileContactInfo = mongoose.model(
   "candidateContactInfo",
-  candidateContactInfoSchema,
-);
-
-const candidateSocialInfoSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      unique: true,
-      index: true,
-    },
-
-    linkedInUrl: { type: String },
-    gitHubUrl: { type: String },
-    portfolioUrl: { type: String },
-    websiteUrl: { type: String },
-  },
-  {
-    timestamps: true,
-  },
+  singleSchema({
+    email: { ...str, lowercase: true },
+    mobile: str,
+    alternateMobile: str,
+    address: String,
+    city: str,
+    state: str,
+    country: str,
+    pincode: str,
+  }),
 );
 
 module.exports.ProfileSocialInfo = mongoose.model(
   "candidateSocialInfo",
-  candidateSocialInfoSchema,
+  singleSchema({
+    linkedInUrl: String,
+    gitHubUrl: String,
+    portfolioUrl: String,
+    websiteUrl: String,
+  }),
 );
 
-const candidateSkillSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      index: true,
-    },
+module.exports.ProfileSetting = mongoose.model(
+  "candidateSetting",
+  singleSchema({
+    isPublished: { type: Boolean, default: false },
+    completionPercentage: { type: Number, default: 0 },
+  }),
+);
 
-    skillName: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
+/* ------------------------------- lists ------------------------------ */
+module.exports.ProfileSkill = mongoose.model(
+  "candidateSkill",
+  listSchema({
+    skillName: { ...str, required: true },
     proficiency: {
       type: String,
       enum: ["Beginner", "Intermediate", "Advanced", "Expert"],
       default: "Intermediate",
     },
-
-    experienceInYears: {
-      type: Number,
-      default: 0,
-    },
-  },
-  {
-    timestamps: true,
-  },
-);
-
-module.exports.ProfileSkill = mongoose.model(
-  "candidateSkill",
-  candidateSkillSchema,
-);
-
-const candidateEducationSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      index: true,
-    },
-
-    instituteName: String,
-    degree: String,
-    fieldOfStudy: String,
-
-    startDate: Date,
-    endDate: Date,
-
-    percentage: Number,
-
-    grade: String,
-
-    description: String,
-  },
-  {
-    timestamps: true,
-  },
+    experienceInYears: { type: Number, default: 0 },
+  }),
 );
 
 module.exports.ProfileEducation = mongoose.model(
   "candidateEducation",
-  candidateEducationSchema,
-);
-
-const candidateExperienceSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      index: true,
-    },
-
-    companyName: { type: String },
-
-    designation: { type: String },
-
-    employmentType: { type: String },
-
-    location: { type: String },
-
-    startDate: { type: Date },
-
-    endDate: { type: Date },
-
-    isCurrentCompany: {
-      type: Boolean,
-      default: false,
-    },
-
+  listSchema({
+    instituteName: String,
+    degree: String,
+    fieldOfStudy: String,
+    startDate: Date,
+    endDate: Date,
+    percentage: Number,
+    grade: String,
     description: String,
-  },
-  {
-    timestamps: true,
-  },
+  }),
 );
 
 module.exports.ProfileExperience = mongoose.model(
   "candidateExperience",
-  candidateExperienceSchema,
-);
-
-const candidateProjectSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      index: true,
-    },
-
-    projectName: String,
-
-    role: String,
-
+  listSchema({
+    companyName: String,
+    designation: String,
+    employmentType: String,
+    location: String,
+    startDate: Date,
+    endDate: Date,
+    isCurrentCompany: { type: Boolean, default: false },
     description: String,
-
-    technologies: [String],
-
-    projectUrl: String,
-  },
-  {
-    timestamps: true,
-  },
+  }),
 );
 
 module.exports.ProfileProject = mongoose.model(
   "candidateProject",
-  candidateProjectSchema,
-);
-
-const candidateCertificateSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      index: true,
-    },
-
-    certificateName: String,
-
-    issuedBy: String,
-
-    issuedDate: Date,
-
-    credentialId: String,
-
-    credentialUrl: String,
-  },
-  {
-    timestamps: true,
-  },
+  listSchema({
+    projectName: String,
+    role: String,
+    description: String,
+    technologies: [String],
+    projectUrl: String,
+  }),
 );
 
 module.exports.ProfileCertificate = mongoose.model(
   "candidateCertificate",
-  candidateCertificateSchema,
-);
-
-const candidateAchievementSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      index: true,
-    },
-
-    title: String,
-
-    description: String,
-
-    achievementDate: Date,
-  },
-  {
-    timestamps: true,
-  },
+  listSchema({
+    certificateName: String,
+    issuedBy: String,
+    issuedDate: Date,
+    credentialId: String,
+    credentialUrl: String,
+  }),
 );
 
 module.exports.ProfileAchievement = mongoose.model(
   "candidateAchievement",
-  candidateAchievementSchema,
-);
-
-const candidateLanguageSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      index: true,
-    },
-
-    languageName: String,
-
-    proficiencyLevel: {
-      type: String,
-      enum: ["Beginner", "Intermediate", "Advanced", "Fluent", "Native"],
-    },
-  },
-  {
-    timestamps: true,
-  },
+  listSchema({ title: String, description: String, achievementDate: Date }),
 );
 
 module.exports.ProfileLanguage = mongoose.model(
   "candidateLanguage",
-  candidateLanguageSchema,
-);
-
-const candidateSettingSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "users",
-      required: true,
-      unique: true,
-      index: true,
+  listSchema({
+    languageName: String,
+    proficiencyLevel: {
+      type: String,
+      enum: ["Beginner", "Intermediate", "Advanced", "Fluent", "Native"],
     },
-
-    isPublished: {
-      type: Boolean,
-      default: false,
-    },
-
-    completionPercentage: {
-      type: Number,
-      default: 0,
-    },
-  },
-  {
-    timestamps: true,
-  },
-);
-
-module.exports.ProfileSetting = mongoose.model(
-  "candidateSetting",
-  candidateSettingSchema,
+  }),
 );

@@ -22,9 +22,12 @@ const {
   getProfileSections,
   bulkSaveProfile,
   importResume,
+  getPublishStatus,
+  unpublishProfile,
 } = require("../controllers/candidateProfile.controller");
 
 const router = express.Router();
+router.use(protect, authorize(ROLES.CANDIDATE));
 
 // Memory Storage for fastest processing (Zero local disk I/O latency)
 const upload = multer({
@@ -196,7 +199,7 @@ router.get("/check-slug", checkSlug);
  *       403:
  *         description: Candidate role required
  */
-router.post("/publish", protect, publishProfile);
+router.post("/publish", publishProfile);
 
 /**
  * @swagger
@@ -267,5 +270,8 @@ collectionSections.forEach((section) => {
   // Delete
   router.delete(`/${section}/:id`, deleteCollection(section));
 });
+
+router.get("/published-url", getPublishStatus);
+router.post("/unpublish", unpublishProfile);
 
 module.exports = router;

@@ -16,6 +16,7 @@ const interviewRoutes = require("./routes/interview.routes");
 const { errorHandler, notFound } = require("./middlewares/error.middleware");
 const { setupSwagger } = require("../swagger");
 const httpLogger = require("./middlewares/httpLogger.middleware");
+const compression = require("compression");
 
 const app = express();
 
@@ -70,6 +71,7 @@ app.use(
   }),
 );
 
+app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());

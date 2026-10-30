@@ -1,5 +1,6 @@
-const bcrypt = require("bcryptjs");
+const bcrypt = require("bcrypt"); // native, ~4x faster than bcryptjs
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const { generateAccessToken, generateRefreshToken } = require("../utils/token");
 const { User } = require("../models/user.model");
 const { asyncHandler } = require("../utils/asyncHandler");
@@ -7,7 +8,12 @@ const { appError } = require("../utils/appError");
 const { successResponse } = require("../utils/apiResponse");
 const { verifyGoogle, verifyFacebook } = require("../utils/socialAuth");
 
-const buildAuthResponse = (user, accessToken, refreshToken) => ({
+const BCRYPT_ROUNDS = 10;
+const SESSION_FIELDS = "firstName lastName email role isActive";
+// compared against when the email doesn't exist, so timing doesn't reveal valid emails
+const DUMMY_HASH = bcrypt.hashSync("dummy-password", BCRYPT_ROUNDS);
+
+const buildAuthResponse = (user, accessToken) => ({
   userId: user._id,
   fullName: `${user.firstName} ${user.lastName}`,
   email: user.email,
@@ -15,52 +21,7 @@ const buildAuthResponse = (user, accessToken, refreshToken) => ({
   token: accessToken,
 });
 
-exports.signup = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, password, registrationType } = req.body;
-
-  if (!firstName || !lastName || !email || !password || !registrationType) {
-    throw appError("Required fields are missing.", 400);
-  }
-
-  const existingUser = await User.findOne({
-    email: email.toLowerCase(),
-  }).lean();
-
-  if (existingUser) {
-    throw appError("Email already exists.", 400);
-  }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  const user = await User.create({
-    firstName,
-    lastName,
-    email,
-    passwordHash,
-    role: registrationType,
-    isActive: true,
-  });
-
-  const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
-
-  user.refreshToken = refreshToken;
-  await user.save();
-
-  return successResponse(
-    res,
-    "Signup successfully.",
-    buildAuthResponse(user, accessToken, refreshToken),
-    201,
-  );
-});
-
-const issueSession = async (res, user, message, status = 200) => {
-  if (!user.isActive) throw appError("User account is inactive.", 400);
-
-  const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
-
+const setRefreshCookie = (res, refreshToken) =>
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -68,17 +29,76 @@ const issueSession = async (res, user, message, status = 200) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
-  user.refreshToken = refreshToken;
-  await user.save();
+// Mongoose doc with changes / new -> save(); plain or unchanged -> one cheap updateOne
+const persistRefreshToken = (user, refreshToken) => {
+  if (typeof user.save === "function" && (user.isNew || user.isModified())) {
+    user.refreshToken = refreshToken;
+    return user.save();
+  }
+  return User.updateOne({ _id: user._id }, { $set: { refreshToken } });
+};
+
+const issueSession = async (res, user, message, status = 200) => {
+  if (!user.isActive) throw appError("User account is inactive.", 400);
+
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  setRefreshCookie(res, refreshToken);
+  await persistRefreshToken(user, refreshToken);
 
   return successResponse(
     res,
     message,
-    buildAuthResponse(user, accessToken, refreshToken),
+    buildAuthResponse(user, accessToken),
     status,
   );
 };
 
+/* ------------------------------- signup ------------------------------- */
+exports.signup = asyncHandler(async (req, res) => {
+  const { firstName, lastName, email, password, registrationType } = req.body;
+
+  if (!firstName || !lastName || !email || !password || !registrationType) {
+    throw appError("Required fields are missing.", 400);
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // hash and duplicate check run in parallel
+  const [existing, passwordHash] = await Promise.all([
+    User.exists({ email: normalizedEmail }),
+    bcrypt.hash(password, BCRYPT_ROUNDS),
+  ]);
+  if (existing) throw appError("Email already exists.", 400);
+
+  // pre-generate _id so tokens can be signed before the single insert (no second save)
+  const _id = new mongoose.Types.ObjectId();
+  const draft = { _id, role: registrationType };
+  const accessToken = generateAccessToken(draft);
+  const refreshToken = generateRefreshToken(draft);
+
+  const user = await User.create({
+    _id,
+    firstName,
+    lastName,
+    email: normalizedEmail,
+    passwordHash,
+    role: registrationType,
+    isActive: true,
+    refreshToken,
+  });
+
+  setRefreshCookie(res, refreshToken);
+  return successResponse(
+    res,
+    "Signup successfully.",
+    buildAuthResponse(user, accessToken),
+    201,
+  );
+});
+
+/* --------------------------- social login ---------------------------- */
 const socialLogin = async (res, provider, token) => {
   if (!token) throw appError("Social token is required.", 400);
 
@@ -86,13 +106,12 @@ const socialLogin = async (res, provider, token) => {
     provider === "google"
       ? await verifyGoogle(token)
       : await verifyFacebook(token);
-
   const idField = provider === "google" ? "googleId" : "facebookId";
 
-  // 1) existing social account, 2) existing email account -> link, 3) new user
-  let user =
-    (await User.findOne({ [idField]: profile.providerId })) ||
-    (await User.findOne({ email: profile.email }));
+  // one query instead of two sequential ones
+  let user = await User.findOne({
+    $or: [{ [idField]: profile.providerId }, { email: profile.email }],
+  });
 
   let isNew = false;
   if (!user) {
@@ -118,105 +137,76 @@ const socialLogin = async (res, provider, token) => {
   );
 };
 
+/* ------------------------------- login -------------------------------- */
 exports.login = asyncHandler(async (req, res) => {
   const { email, password, provider = "email", token } = req.body;
 
   if (provider === "google" || provider === "facebook") {
     return socialLogin(res, provider, token);
   }
-
-  if (!email || !password) {
+  if (!email || !password)
     throw appError("Email and password are required.", 400);
-  }
 
-  const user = await User.findOne({
-    email: email.toLowerCase(),
-  });
+  // lean + only needed fields; uses the unique email index
+  const user = await User.findOne({ email: email.toLowerCase().trim() })
+    .select(`+passwordHash ${SESSION_FIELDS}`)
+    .lean();
 
-  // social-only accounts have no passwordHash
-  if (!user || !user.passwordHash) {
-    throw appError("Invalid email or password.", 401);
-  }
-
-  if (!user) {
-    throw appError("Invalid email or password.", 401);
-  }
-
-  const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-
-  if (!isPasswordValid) {
-    throw appError("Invalid email or password.", 401);
-  }
-
-  // return issueSession(res, user, "Login successfully.");
-
-  if (!user.isActive) {
-    throw appError("User account is inactive.", 400);
-  }
-
-  const accessToken = generateAccessToken(user);
-  const refreshToken = generateRefreshToken(user);
-
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: false,
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-
-  user.refreshToken = refreshToken;
-  await user.save();
-
-  return successResponse(
-    res,
-    "Login successfully.",
-    buildAuthResponse(user, accessToken, refreshToken),
+  // always run one compare so response time is the same for unknown emails
+  const isValid = await bcrypt.compare(
+    password,
+    user?.passwordHash || DUMMY_HASH,
   );
+  if (!user || !user.passwordHash || !isValid) {
+    throw appError("Invalid email or password.", 401);
+  }
+
+  return issueSession(res, user, "Login successfully.");
 });
 
+/* ---------------------------- refresh token ---------------------------- */
 exports.refreshToken = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body;
+  const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
+  if (!refreshToken) throw appError("Refresh token is required.", 400);
 
-  if (!refreshToken) {
-    throw appError("Refresh token is required.", 400);
+  let decoded;
+  try {
+    decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+  } catch {
+    throw appError("Invalid refresh token.", 401);
   }
 
-  const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+  const user = await User.findById(decoded.userId)
+    .select(`+refreshToken ${SESSION_FIELDS}`)
+    .lean();
 
-  const user = await User.findById(decoded.userId);
-
-  if (!user || user.refreshToken !== refreshToken) {
+  if (!user || !user.isActive || user.refreshToken !== refreshToken) {
     throw appError("Invalid refresh token.", 401);
   }
 
   const accessToken = generateAccessToken(user);
   const newRefreshToken = generateRefreshToken(user);
 
-  user.refreshToken = newRefreshToken;
-  await user.save();
+  setRefreshCookie(res, newRefreshToken);
+  await User.updateOne(
+    { _id: user._id },
+    { $set: { refreshToken: newRefreshToken } },
+  );
 
   return successResponse(
     res,
     "Token refreshed successfully.",
-    buildAuthResponse(user, accessToken, newRefreshToken),
+    buildAuthResponse(user, accessToken),
   );
 });
 
+/* ------------------------------- logout -------------------------------- */
 exports.logout = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body;
+  const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
+  if (!refreshToken) throw appError("Refresh token is required.", 400);
 
-  if (!refreshToken) {
-    throw appError("Refresh token is required.", 400);
-  }
-
-  await User.updateOne(
-    { refreshToken },
-    {
-      $set: {
-        refreshToken: null,
-      },
-    },
-  );
+  await User.updateOne({ refreshToken }, { $set: { refreshToken: null } });
+  res.clearCookie("refreshToken");
 
   return successResponse(res, "Logout successfully.", null);
 });

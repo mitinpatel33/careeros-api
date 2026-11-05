@@ -17,6 +17,8 @@ const { errorHandler, notFound } = require("./middlewares/error.middleware");
 const { setupSwagger } = require("../swagger");
 const httpLogger = require("./middlewares/httpLogger.middleware");
 const compression = require("compression");
+const paymentRoutes = require("./routes/payment.routes");
+const { webhook } = require("./controllers/payment.controller");
 
 const app = express();
 
@@ -71,6 +73,12 @@ app.use(
   }),
 );
 
+app.post(
+  "/api/payments/webhook",
+  express.raw({ type: "application/json" }),
+  webhook,
+);
+
 app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -111,6 +119,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/candidate/profile", profileRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/interview", interviewRoutes);
+app.use("/api/payment", paymentRoutes);
 app.use("/", publicRoutes);
 
 // Error Middlewares
